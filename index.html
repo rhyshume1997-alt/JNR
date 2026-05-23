@@ -1095,6 +1095,58 @@ textarea.form-input { resize: vertical; min-height: 120px; }
   to   { transform: scale(1); }
 }
 
+
+/* ══ TURNAROUND USP ══ */
+.turnaround-section {
+  background: var(--navy);
+}
+.turnaround-inner { max-width: 100%; }
+.turnaround-section .section-title,
+.turnaround-section .eyebrow { color: #fff; }
+.turnaround-section .section-desc { color: rgba(255,255,255,0.6); }
+.turnaround-grid {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 2px;
+  margin-top: 40px;
+}
+.turn-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  padding: 36px 32px;
+  transition: background 0.25s ease, transform 0.25s ease;
+}
+.turn-card:hover {
+  background: rgba(46,82,184,0.12);
+  transform: translateY(-4px);
+}
+.turn-num {
+  font-family: var(--font-head);
+  font-size: 56px;
+  font-weight: 800;
+  color: var(--blue-light);
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+.turn-label {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #fff;
+  margin: 12px 0 14px;
+}
+.turn-card p {
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1.7;
+  color: rgba(255,255,255,0.6);
+}
+@media (max-width: 768px) {
+  .turnaround-grid { grid-template-columns: 1fr; }
+}
+
 </style>
 </head>
 <body>
@@ -1138,7 +1190,7 @@ textarea.form-input { resize: vertical; min-height: 120px; }
         <span class="pull-word" style="animation-delay:0.25s">Precision Engineered.</span><br>
         <span class="pull-word" style="animation-delay:0.42s">Every Time.</span>
       </h1>
-      <p class="hero-desc">You send the drawing. We machine the part right, first time, and get it back to you fast. Family-run in Hamilton since 2006.</p>
+      <p class="hero-desc">You send the drawing. We machine the part right and turn it around fast. Family-run in Hamilton since 2006.</p>
       <div class="hero-actions">
         <a class="btn-glass" onclick="showPage('quote')">
           Get A Quote
@@ -1221,7 +1273,7 @@ textarea.form-input { resize: vertical; min-height: 120px; }
   <div class="quality-band">
     <div class="reveal">
       <h2 class="quality-headline">Checked, Measured,<br>Then Shipped.</h2>
-      <p class="quality-desc">Every part is measured against your drawing before it leaves us. You get parts that fit and work, no surprises when the box turns up.</p>
+      <p class="quality-desc">Every part is measured against your drawing before it leaves us. You get parts that fit and work, no surprises when the job turns up.</p>
     </div>
     <div class="quality-badges reveal reveal-d1">
       <div class="quality-badge">
@@ -1235,6 +1287,40 @@ textarea.form-input { resize: vertical; min-height: 120px; }
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
         </div>
         Fast Turnaround, Breakdowns Too
+      </div>
+    </div>
+  </div>
+
+  <!-- Turnaround USP -->
+  <div class="section turnaround-section">
+    <div class="turnaround-inner">
+      <div class="reveal">
+        <div class="eyebrow section-tag">Why Firms Call Us First</div>
+        <h2 class="section-title">When You Need It<br>Yesterday.</h2>
+        <p class="section-desc">Most engineering jobs are not late because of the machining. They are late because the shop sat on the quote, or stacked your job behind ten others. We work differently.</p>
+      </div>
+      <div class="turnaround-grid">
+        <div class="turn-card reveal reveal-d1">
+          <div class="turn-num">24h</div>
+          <div class="turn-label">Quote Turnaround</div>
+          <p>Send a drawing today and you get a price and a lead time back within 24 working hours. No chasing.</p>
+        </div>
+        <div class="turn-card reveal reveal-d2">
+          <div class="turn-num">Fast</div>
+          <div class="turn-label">Job Lead Times</div>
+          <p>We keep capacity free for quick-turn work. Urgent jobs get slotted in, not stuck at the back of a queue.</p>
+        </div>
+        <div class="turn-card reveal reveal-d3">
+          <div class="turn-num">24/7</div>
+          <div class="turn-label">Breakdown Cover</div>
+          <p>Production down and a part has failed? Get in touch. We turn breakdown work around as fast as it can be machined.</p>
+        </div>
+      </div>
+      <div class="reveal reveal-d3" style="margin-top:36px">
+        <a class="btn-glass" onclick="showPage('quote')">
+          Get A Fast Quote
+          <svg class="btn-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
       </div>
     </div>
   </div>
@@ -1344,7 +1430,7 @@ textarea.form-input { resize: vertical; min-height: 120px; }
         <h2>Straight To The<br>People Who<br>Do The Work.</h2>
         <p>We are a family-run engineering firm in Hamilton, going since 2006. Between us the team has over 100 years on the tools, and that experience goes into every part that leaves here.</p>
         <p>When you call, you speak to the people who will actually make your parts. No being passed around. That is why our tolerances hold and our lead times are honest, because the person quoting you is the person cutting metal.</p>
-        <p>Our parts go into aerospace, defence, oil and gas and medical work, jobs where a part failing is not an option. So we check everything against your drawing before it ships. You get it right, first time.</p>
+        <p>Our parts go into aerospace, defence, oil and gas and medical work, jobs where a part failing is not an option. So we check everything against your drawing before it ships.</p>
         <a class="btn-glass" style="margin-top:24px" onclick="showPage('quote')">
           Get A Quote
           <svg class="btn-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
