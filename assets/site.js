@@ -154,6 +154,29 @@ setTimeout(function(){ document.querySelectorAll('.page.active .rv, .page.active
 
   if (reduce) { document.querySelectorAll('.proc-step').forEach(function(el){ el.classList.add('on'); }); return; }
 
+  // Ticker: steady drift, speeds up with scroll and follows scroll direction
+  var track = document.querySelector('.ticker-track');
+  if (track) {
+    track.style.animation = 'none';
+    var tx = 0, dir = -1, boost = 0, base = 0.55, slow = 1;
+    gsap.ticker.add(function(){
+      var half = track.scrollWidth / 2;
+      if (!half) return;
+      tx += (base * slow + boost) * dir;
+      if (tx <= -half) tx += half;
+      if (tx > 0) tx -= half;
+      gsap.set(track, { x: tx });
+      boost *= 0.93;
+    });
+    ScrollTrigger.create({ onUpdate: function(self){
+      boost = Math.min(Math.abs(self.getVelocity()) / 260, 9);
+      dir = self.direction === 1 ? -1 : 1;
+    }});
+    var tk = track.parentNode;
+    tk.addEventListener('mouseenter', function(){ gsap.to({v: slow}, { v: 0.25, duration: 0.6, onUpdate: function(){ slow = this.targets()[0].v; } }); });
+    tk.addEventListener('mouseleave', function(){ gsap.to({v: slow}, { v: 1, duration: 0.6, onUpdate: function(){ slow = this.targets()[0].v; } }); });
+  }
+
   // Hero content drifts up and fades as you scroll away
   var hc = document.querySelector('.hero-content, .page-hero-content');
   var hero = document.querySelector('.hero, .page-hero');
