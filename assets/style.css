@@ -1401,3 +1401,79 @@ html.lenis, html.lenis body { height: auto; }
   .soon-pill i { animation: none; }
   .btn-roll > span, .btn-chip svg { transition: none; }
 }
+
+/* ═══ TICKER: premium version ═══ */
+.ticker {
+  background: var(--ink-2);
+  padding: 26px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 9%, #000 91%, transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0, #000 9%, #000 91%, transparent 100%);
+}
+.ticker::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 60% 120% at 50% 50%, rgba(46,82,184,0.16), transparent 70%);
+}
+.ticker-track { animation-duration: 60s; will-change: transform; }
+.ticker span {
+  font-family: var(--head);
+  font-size: clamp(30px, 3.4vw, 46px);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: #fff;
+  padding: 0 0 0 44px;
+  gap: 44px;
+}
+.ticker span:nth-child(even) {
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(143,169,238,0.7);
+}
+.ticker span::after {
+  content: '';
+  width: 9px; height: 9px;
+  background: var(--blue-hi);
+  transform: rotate(45deg);
+  box-shadow: 0 0 14px rgba(94,131,232,0.8);
+  flex: none;
+}
+@media (max-width: 768px) {
+  .ticker { padding: 18px 0; }
+  .ticker span { padding-left: 28px; gap: 28px; }
+  .ticker span::after { width: 7px; height: 7px; }
+}
+
+/* ═══ AUDIT REFRESH ═══ */
+/* Hard spec stats */
+.stat-num em.pre { margin-left: 0; margin-right: 4px; }
+.stat { padding-top: 44px; }
+
+/* Coming soon: slim strip instead of empty sections */
+.soon-strip { padding: 0 48px; background: var(--ink); }
+.soon-strip-in {
+  max-width: 1500px; margin: 0 auto;
+  display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+  padding: 28px 0;
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+.soon-strip p { color: var(--txt-dim); font-size: 15px; line-height: 1.6; }
+.soon-strip p b { color: #fff; font-weight: 500; margin-right: 4px; }
+@media (max-width: 768px) { .soon-strip { padding: 0 20px; } .soon-strip-in { gap: 14px; } }
+
+/* Industries without number labels */
+.ind-cell .ind-ic { margin-bottom: 22px; }
+
+/* Legal footer line */
+.foot-bottom { align-items: center; }
+.foot-bottom .foot-legal { flex: 1 1 420px; text-align: center; text-transform: none; letter-spacing: 0.04em; opacity: 0.8; }
+.foot-bottom a { color: inherit; text-decoration: none; border-bottom: 1px solid currentColor; }
+.foot-bottom a:hover { color: #fff; }
+@media (max-width: 768px) { .foot-bottom { flex-direction: column; align-items: flex-start; } .foot-bottom .foot-legal { text-align: left; flex: none; } }
+
+/* Privacy page */
+.legal { max-width: 760px !important; }
+.legal h2 { font-family: var(--head); font-weight: 400; font-size: 30px; text-transform: uppercase; color: var(--ink); margin: 44px 0 12px; }
+.legal p { color: rgba(11,22,38,0.72); line-height: 1.75; font-size: 16px; }
+.legal a { color: var(--blue); }
+.legal .legal-date { margin-top: 44px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(11,22,38,0.45); }
