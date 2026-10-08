@@ -13,6 +13,7 @@
 <meta property="og:description" content="CNC milling, CNC turning, 5 axis machining, metal fabrication and inspection from our workshop in Hamilton, Scotland.">
 <meta property="og:url" content="https://jnrengineering.co.uk/services">
 <meta property="og:locale" content="en_GB">
+<meta property="og:image" content="https://jnrengineering.co.uk/assets/mill.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -34,10 +35,7 @@
     <li><a id="nl-about" href="/about">About</a></li>
     <li><a id="nl-services" class="active" href="/services">Services</a></li>
   </ul>
-  <a class="nav-cta" href="/quote">
-    Get A Quote
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-  </a>
+  <a class="nav-cta magnetic" href="/quote"><span class="btn-roll"><span>Get A Quote</span><span aria-hidden="true">Get A Quote</span></span><span class="btn-chip"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span></a>
   <button class="hamburger" id="burger" onclick="toggleMenu()" aria-label="Menu">
     <span></span><span></span><span></span>
   </button>
@@ -60,7 +58,7 @@
     <div class="page-hero-content">
       <div class="hero-kicker" style="animation-delay:0.3s">Capabilities</div>
       <h1><span class="line"><span style="animation-delay:0.45s">Machining And Fabrication</span></span><span class="line"><span style="animation-delay:0.6s"><em>Under One Roof.</em></span></span></h1>
-      <p class="hero-sub">Milling, turning, fabrication and inspection, all done in our Hamilton workshop and checked against your drawing before anything goes out.</p>
+      <p class="hero-sub">Milling, turning, water jet profiling, fabrication and inspection, all done in our Hamilton workshop and checked against your drawing before anything goes out.</p>
     </div>
   </div>
 
@@ -100,8 +98,16 @@
             <div class="svc-spec"><span>Prototype</span><span>Production</span><span>All Materials</span></div>
           </div>
         </div>
+        <div class="svc-full-card svc-full-wide rv" id="water-jet">
+          <div class="svc-full-img"><span class="fig">SVC / 05 · Water Jet</span><div class="bg-wj"></div></div>
+          <div class="svc-full-body">
+            <h3>Water Jet Profiling</h3>
+            <p>Profiles cut from sheet and plate with a high pressure water jet. It's a cold cut, so there's no heat distortion and the material keeps its properties right up to the edge. Send us a DXF or a drawing and we'll cut it to shape, ready for machining or fabrication.</p>
+            <div class="svc-spec"><span>Cold Cut</span><span>No Heat Distortion</span><span>Clean Edges</span><span>DXF Ready</span></div>
+          </div>
+        </div>
         <div class="svc-full-card rv">
-          <div class="svc-full-img"><span class="fig">SVC / 05 · Inspection</span><div class="bg-insp"></div></div>
+          <div class="svc-full-img"><span class="fig">SVC / 06 · Inspection</span><div class="bg-insp"></div></div>
           <div class="svc-full-body">
             <h3>Inspection</h3>
             <p>First article reports, calibrated gauging and full dimensional checks, with inspection paperwork supplied if your job needs it.</p>
@@ -109,7 +115,7 @@
           </div>
         </div>
         <div class="svc-full-card rv rv-d1">
-          <div class="svc-full-img"><span class="fig">SVC / 06 · Materials</span><div class="bg-mat"></div></div>
+          <div class="svc-full-img"><span class="fig">SVC / 07 · Materials</span><div class="bg-mat"></div></div>
           <div class="svc-full-body">
             <h3>Materials</h3>
             <p>We machine plastics, copper, aluminium, stainless and hardened steel. Tell us what the job needs and we'll advise.</p>
@@ -124,12 +130,9 @@
   <div class="cta-band">
     <div class="hero-grid"></div>
     <div class="rv" style="position:relative;z-index:2">
-      <h2 class="cta-title">Request A Quote.<br><em>Price Back In 24 Hours.</em></h2>
+      <h2 class="cta-title">Request A Quote.<br><em>Get A Straight Price.</em></h2>
       <p class="cta-sub">Fill in the quote form and you'll get a quote number. Email your drawings with that number in the subject line and we'll come back with a price and a lead time.</p>
-      <a class="btn btn-primary" href="/quote">
-        Get A Quote
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-      </a>
+      <a class="btn btn-primary magnetic" href="/quote"><span class="btn-roll"><span>Get A Quote</span><span aria-hidden="true">Get A Quote</span></span><span class="btn-chip"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span></a>
     </div>
   </div>
 
@@ -172,6 +175,9 @@
   </div>
 </footer>
 
+<script src="/assets/gsap.min.js"></script>
+<script src="/assets/ScrollTrigger.min.js"></script>
+<script src="/assets/lenis.min.js"></script>
 <script src="/assets/site.js"></script>
 </body>
 </html>
