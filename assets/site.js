@@ -49,16 +49,6 @@ function runCounters(scope){
   });
 }
 
-/* ═══ QUOTE NUMBER ═══ */
-function makeQuoteRef(){
-  var d = new Date();
-  var ymd = String(d.getFullYear()).slice(2) + ('0'+(d.getMonth()+1)).slice(-2) + ('0'+d.getDate()).slice(-2);
-  var chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', tail = '';
-  var rnd = (window.crypto && crypto.getRandomValues) ? crypto.getRandomValues(new Uint32Array(4)) : [0,0,0,0].map(function(){ return Math.floor(Math.random()*1e9); });
-  for (var i = 0; i < 4; i++) tail += chars[rnd[i] % chars.length];
-  return 'JNR-' + ymd + '-' + tail;
-}
-
 /* ═══ FORM SUBMIT (Formspree) ═══ */
 async function submitForm() {
   var content = document.getElementById('formContent');
@@ -87,11 +77,11 @@ async function submitForm() {
     return;
   }
 
-  var ref = makeQuoteRef();
   var emailEl = document.querySelector('#formContent input[name="email"]');
-  data.append('quote_number', ref);
+  var companyEl = document.querySelector('#formContent input[name="company"]');
+  var company = companyEl ? companyEl.value.trim() : '';
   if (emailEl) data.append('_replyto', emailEl.value);
-  data.append('_subject', 'Quote request ' + ref + ' from website');
+  data.append('_subject', 'Website quote request from ' + (company || 'a new customer'));
 
   if (btn) { btn.disabled = true; btn.innerHTML = 'Sending...'; }
   try {
@@ -101,10 +91,8 @@ async function submitForm() {
       headers: { 'Accept': 'application/json' }
     });
     if (res.ok) {
-      var refEl = document.getElementById('quoteRef');
-      if (refEl) refEl.textContent = ref;
       var mail = document.getElementById('quoteMail');
-      if (mail) mail.href = 'mailto:john.hume@jnrengineeringltd.co.uk?subject=' + encodeURIComponent('Drawings for quote ' + ref);
+      if (mail) mail.href = 'mailto:john.hume@jnrengineeringltd.co.uk?subject=' + encodeURIComponent('Drawings for quote request, ' + (company || 'your company name'));
       if (content) content.classList.add('form-hidden');
       if (success) success.classList.add('show');
       var wrap = document.querySelector('.q-form-wrap');
