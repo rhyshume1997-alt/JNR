@@ -1,0 +1,24 @@
+/* shared light base for design tests */
+body{background:#fff;color:var(--ink)}
+body::after{display:none}
+.section:not(.light){background:#fff;color:var(--ink)}
+.section.light{background:var(--paper)}
+.sec-title,.hero h1,.page-hero h1,.cta-title,.svc-name,.proc-step h3,.stat-num{font-family:'Archivo',sans-serif;font-weight:700;text-transform:none;letter-spacing:-0.025em;line-height:1.02}
+.sec-title{color:var(--ink);font-size:clamp(32px,4.4vw,60px)}
+.sec-desc{color:rgba(11,22,38,.66)}
+.eyebrow{color:var(--blue)} .eyebrow::before{background:var(--blue)}
+.stat-num{color:var(--ink)} .stat-num em{color:var(--blue)} .stat-label{color:rgba(11,22,38,.6)}
+.stats{border-color:var(--line-dark)} .stat{border-color:var(--line-dark)}
+.proc{background:var(--paper)!important}
+.proc-step{background:#fff;border:1px solid var(--line-dark)}
+.proc-step h3{color:var(--ink);font-size:24px}
+.proc-step p,.proc-step.on p{color:rgba(11,22,38,.65)}
+.proc-no{-webkit-text-stroke:1px rgba(46,82,184,.5)}
+.proc-step.on .proc-no{-webkit-text-stroke-color:var(--blue)}
+.proc-bar{background:var(--line-dark)}
+.ind-cell{border-color:var(--line-dark);color:var(--ink)} .ind-cell span{color:var(--ink)}
+.q-point-num{color:var(--blue)}
+.svc-name{font-size:28px}
+.btn{border-radius:12px}
+.btn-ghost{box-shadow:inset 0 0 0 1px rgba(11,22,38,.25);color:var(--ink)}
+.hero .btn-ghost,.cta-band .btn-ghost{box-shadow:inset 0 0 0 1px rgba(255,255,255,.4);color:#fff}

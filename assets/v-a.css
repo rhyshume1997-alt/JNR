@@ -1,0 +1,22 @@
+/* A: AstroFlow style. White bar nav, full photo hero, stat cards, rounded photo cards */
+nav,nav.solid{background:#fff;height:78px;box-shadow:0 1px 0 var(--line-dark)}
+nav .lg-white{display:none!important} nav .lg-navy{display:block!important}
+.nav-logo img{height:50px!important}
+.nav-links a,nav.solid .nav-links a{color:rgba(11,22,38,.75)} .nav-links a.active{color:var(--ink)!important}
+.hamburger span{background:var(--ink)}
+.hero{min-height:88svh;padding-top:150px}
+.hero-bg{inset:0;animation:none;filter:none}
+.hero-shade{background:linear-gradient(90deg,rgba(11,22,38,.88) 0%,rgba(11,22,38,.55) 55%,rgba(11,22,38,.25) 100%)}
+.hero-grid{display:none}
+.hero h1{font-size:clamp(40px,6vw,88px);color:#fff}
+.hero h1 .line:nth-child(2) span{color:#7FA0F5}
+.hero-meta{margin-top:56px;border-top:1px solid rgba(255,255,255,.25);padding-top:26px}
+.ticker{display:none}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;border:0}
+.stat{background:var(--paper);border:1px solid var(--line-dark);border-radius:16px;padding:34px 28px}
+.svc-card{border-radius:18px;min-height:420px;border:0}
+.svc-img{filter:none} .svc-card::after{background:linear-gradient(180deg,rgba(11,22,38,0) 30%,rgba(11,22,38,.85) 100%)}
+.svc-name{color:#fff}
+.quality{border-radius:20px;overflow:hidden}
+.cta-band{background:var(--blue)}
+@media(max-width:900px){.stats{grid-template-columns:1fr 1fr}}
