@@ -1477,3 +1477,27 @@ html.lenis, html.lenis body { height: auto; }
 .legal p { color: rgba(11,22,38,0.72); line-height: 1.75; font-size: 16px; }
 .legal a { color: var(--blue); }
 .legal .legal-date { margin-top: 44px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(11,22,38,0.45); }
+
+/* ═══ MOCKUP PORT: frosted nav, hero split, pinned quote steps ═══ */
+nav.solid {
+  background: rgba(11,22,38,0.72);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+          backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: 0 1px 0 var(--line);
+}
+nav.solid .nav-logo .lg-white { display: block; }
+nav.solid .nav-logo .lg-navy { display: none; }
+nav.solid .nav-links a { color: rgba(255,255,255,0.75); }
+nav.solid .nav-links a.active, nav.solid .nav-links a:hover { color: #fff; }
+nav.solid .hamburger span { background: #fff; }
+
+/* Hero: GSAP takes over from the CSS line slide */
+html.split-on .hero h1 .line span { animation: none; transform: none; }
+.hero h1 .line { padding-bottom: 0.04em; }
+
+/* How quoting works: horizontal track while pinned (desktop only) */
+.proc.proc-pinned { overflow: hidden; min-height: 100vh; display: flex; align-items: center; }
+.proc.proc-pinned .section-inner { width: 100%; }
+.proc.proc-pinned .proc-grid { display: flex; width: max-content; gap: 22px; will-change: transform; }
+.proc.proc-pinned .proc-step { width: min(440px, 34vw); min-height: 320px; flex: none; }
+#work { scroll-margin-top: 110px; }
