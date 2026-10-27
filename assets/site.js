@@ -177,6 +177,21 @@ setTimeout(function(){ document.querySelectorAll('.page.active .rv, .page.active
     tk.addEventListener('mouseleave', function(){ gsap.to({v: slow}, { v: 1, duration: 0.6, onUpdate: function(){ slow = this.targets()[0].v; } }); });
   }
 
+  // Hero headline builds in letter by letter
+  var hl = document.querySelectorAll('.hero h1 .line > span');
+  if (hl.length && window.SplitText) {
+    gsap.registerPlugin(SplitText);
+    document.documentElement.classList.add('split-on');
+    document.fonts.ready.then(function(){
+      var tl = gsap.timeline({ defaults: { ease: 'expo.out' } });
+      tl.from('.hero .hero-bg', { opacity: 0, duration: 1.8, ease: 'power2.out' }, 0);
+      hl.forEach(function(ln, i){
+        var sp = new SplitText(ln, { type: 'words,chars' });
+        tl.from(sp.chars, { yPercent: 115, duration: 1.15, stagger: 0.02 }, 0.25 + i * 0.18);
+      });
+    });
+  }
+
   // Hero content drifts up and fades as you scroll away
   var hc = document.querySelector('.hero-content, .page-hero-content');
   var hero = document.querySelector('.hero, .page-hero');
@@ -192,16 +207,24 @@ setTimeout(function(){ document.querySelectorAll('.page.active .rv, .page.active
     var bar = proc.querySelector('.proc-bar span');
     var mm = gsap.matchMedia();
     mm.add('(min-width: 1101px)', function(){
-      var st = ScrollTrigger.create({
-        trigger: proc.querySelector('.proc-grid'),
-        start: 'top 62%', end: '+=520', scrub: 0.6,
-        onUpdate: function(self){
-          var p = self.progress;
-          gsap.set(bar, { scaleX: p });
-          steps.forEach(function(s, i){ s.classList.toggle('on', p >= (i + 0.5) / steps.length || (i === 0 && p > 0.02)); });
+      // Pinned: the section holds still while the steps slide across
+      var grid = proc.querySelector('.proc-grid');
+      var inner = proc.querySelector('.section-inner');
+      proc.classList.add('proc-pinned');
+      var dist = function(){ return Math.max(0, grid.scrollWidth - inner.clientWidth); };
+      var tw = gsap.to(grid, {
+        x: function(){ return -dist(); }, ease: 'none',
+        scrollTrigger: {
+          trigger: proc, start: 'top top', end: function(){ return '+=' + (dist() + 500); },
+          pin: true, scrub: 0.8, invalidateOnRefresh: true,
+          onUpdate: function(self){
+            var p = self.progress;
+            gsap.set(bar, { scaleX: p });
+            steps.forEach(function(s, i){ s.classList.toggle('on', p >= i / steps.length + 0.02); });
+          }
         }
       });
-      return function(){ st.kill(); steps.forEach(function(s){ s.classList.remove('on'); }); };
+      return function(){ tw.scrollTrigger.kill(); tw.kill(); gsap.set(grid, { x: 0 }); proc.classList.remove('proc-pinned'); steps.forEach(function(s){ s.classList.remove('on'); }); };
     });
     mm.add('(max-width: 1100px)', function(){
       var sts = [];
