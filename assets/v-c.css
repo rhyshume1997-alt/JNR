@@ -26,3 +26,6 @@ nav .lg-white{display:none!important} nav .lg-navy{display:block!important}
 .quality{border-radius:16px;overflow:hidden;box-shadow:0 0 0 1px var(--line-dark);background:#fff}
 .stat{background:transparent}
 .cta-band{background:var(--ink)}
+.hero .btn-ghost{color:var(--ink);box-shadow:inset 0 0 0 1px rgba(11,22,38,.3)}
+.hero{justify-content:flex-start}
+.hero-bg{display:block;position:relative;inset:auto;order:3;width:min(1300px,100%);height:440px;margin:56px auto 0;border-radius:18px;animation:none;filter:none}

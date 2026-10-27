@@ -27,3 +27,4 @@ nav .lg-white{display:none!important} nav .lg-navy{display:block!important}
 .proc-step{border-radius:20px}
 .cta-band{border-radius:28px;margin:0 20px 20px}
 @media(max-width:900px){.hero{grid-template-columns:1fr}.hero-bg{grid-column:1;grid-row:2;height:320px}.hero-content{grid-row:1}nav,nav.solid{width:calc(100% - 20px)}}
+.hero .btn-ghost{color:var(--ink);box-shadow:inset 0 0 0 1px rgba(11,22,38,.3)}
