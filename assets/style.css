@@ -1501,3 +1501,8 @@ html.split-on .hero h1 .line span { animation: none; transform: none; }
 .proc.proc-pinned .proc-grid { display: flex; width: max-content; gap: 22px; will-change: transform; }
 .proc.proc-pinned .proc-step { width: min(440px, 34vw); min-height: 320px; flex: none; }
 #work { scroll-margin-top: 110px; }
+
+/* icons removed: even padding, no chip gap */
+.btn { padding: 19px 34px; gap: 0; justify-content: center; }
+.nav-cta { padding: 11px 24px; gap: 0; justify-content: center; }
+.svc-card .svc-body, .ind-cell, .proc-step { }
