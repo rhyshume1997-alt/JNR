@@ -1596,6 +1596,19 @@ footer { background: #020D2A; }
 a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, .svc-card:focus-visible { outline: 2px solid var(--blue-hi); outline-offset: 3px; }
 .light a:focus-visible, .light button:focus-visible, .q-form-wrap :focus-visible { outline-color: var(--blue); }
 
+/* Reading width: paragraphs stop at about 65 characters a line */
+.about-copy p, .legal p, .marpet p, .sec-desc, .hero-sub { max-width: 58ch; }
+
+/* Nav on scroll: the bar keeps its height and the logo scales, so nothing animates layout */
+nav { transition: background 0.4s var(--ease), box-shadow 0.4s; }
+nav.solid { height: 96px; }
+.nav-logo img { transition: transform 0.4s var(--ease); transform-origin: left center; }
+nav.solid .nav-logo img { height: 64px; transform: scale(0.875); }
+@media (max-width: 768px) {
+  nav.solid { height: 84px; }
+  nav.solid .nav-logo img { height: 52px; }
+}
+
 /* Phones: a call button that stays put (site.js adds it) */
 .call-bar { display: none; }
 @media (max-width: 768px) {
