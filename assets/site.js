@@ -1,239 +1,130 @@
-/* ═══ NAV SCROLL STATE ═══ */
-var nav = document.getElementById('nav');
-function navState(){
-  if (window.scrollY > 60) nav.classList.add('solid');
-  else nav.classList.remove('solid');
-}
-window.addEventListener('scroll', navState, { passive: true });
-navState();
+/* JNR Engineering - site behaviour. No smooth-scroll hijack, no magnetic buttons. */
+(function () {
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/* ═══ MOBILE MENU ═══ */
-function toggleMenu(){
-  document.getElementById('mobileMenu').classList.toggle('open');
-  document.getElementById('burger').classList.toggle('open');
-}
+  /* nav goes solid once you leave the top */
+  var nav = document.getElementById('nav');
+  function navState() { if (nav) nav.classList.toggle('solid', window.scrollY > 40 || document.body.classList.contains('menu-open')); }
+  window.addEventListener('scroll', navState, { passive: true });
+  navState();
 
-/* ═══ SCROLL REVEAL ═══ */
-var obs;
-function initReveal(){
-  if (obs) obs.disconnect();
-  obs = new IntersectionObserver(function(entries){
-    entries.forEach(function(e){
-      if (e.isIntersecting){
-        e.target.classList.add('in');
-        if (e.target.classList.contains('stats')) runCounters(e.target);
-        obs.unobserve(e.target);
-      }
-    });
-  }, { threshold: 0.12 });
-  document.querySelectorAll('.page.active .rv, .page.active .rv-img').forEach(function(el){
-    if (!el.classList.contains('in')) obs.observe(el);
+  /* mobile menu: button state, Escape to close, focus handling */
+  var burger = document.getElementById('burger');
+  var menu = document.getElementById('mobileMenu');
+  function setMenu(open) {
+    if (!burger || !menu) return;
+    menu.classList.toggle('open', open);
+    burger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    burger.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+    document.body.classList.toggle('menu-open', open);
+    navState();
+    if (open) { var first = menu.querySelector('a'); if (first) first.focus(); }
+  }
+  if (burger) burger.addEventListener('click', function () { setMenu(burger.getAttribute('aria-expanded') !== 'true'); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && menu && menu.classList.contains('open')) { setMenu(false); burger.focus(); }
   });
-}
+  if (menu) menu.addEventListener('click', function (e) { if (e.target.closest('a')) setMenu(false); });
+  window.addEventListener('resize', function () { if (window.innerWidth > 860 && menu && menu.classList.contains('open')) setMenu(false); });
 
-/* ═══ COUNTERS ═══ */
-function runCounters(scope){
-  (scope || document).querySelectorAll('.count').forEach(function(el){
-    if (el.dataset.done) return;
-    el.dataset.done = '1';
-    var target = parseInt(el.dataset.target, 10);
-    var dur = 1400, t0 = null;
-    function step(ts){
-      if (!t0) t0 = ts;
-      var p = Math.min((ts - t0) / dur, 1);
-      var eased = 1 - Math.pow(1 - p, 3);
-      el.textContent = Math.round(eased * target);
-      if (p < 1) requestAnimationFrame(step);
+  /* one quiet reveal; everything is visible without JS or with reduced motion */
+  var rv = document.querySelectorAll('.rv');
+  if (reduce || !('IntersectionObserver' in window)) {
+    rv.forEach(function (el) { el.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    rv.forEach(function (el) { io.observe(el); });
+    setTimeout(function () { rv.forEach(function (el) { el.classList.add('in'); }); }, 3000);
+  }
+
+  /* how quoting works: steps mark themselves as you reach them (order matters, so it is shown) */
+  var steps = document.querySelectorAll('.steps li');
+  if (steps.length) {
+    if (reduce || !('IntersectionObserver' in window)) steps.forEach(function (s) { s.classList.add('on'); });
+    else {
+      var so = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('on'); so.unobserve(e.target); } });
+      }, { threshold: 0.6 });
+      steps.forEach(function (s) { so.observe(s); });
     }
-    requestAnimationFrame(step);
-  });
-}
+  }
 
-/* ═══ FORM SUBMIT (Formspree) ═══ */
-async function submitForm() {
+  /* hero headline builds in letter by letter (kept from the previous version) */
+  var lines = document.querySelectorAll('.hero h1 .line > span');
+  if (lines.length && !reduce && window.gsap && window.SplitText) {
+    gsap.registerPlugin(SplitText);
+    var run = function () {
+      var tl = gsap.timeline({ defaults: { ease: 'expo.out' } });
+      lines.forEach(function (ln, i) {
+        var sp = new SplitText(ln, { type: 'words,chars' });
+        tl.from(sp.chars, { yPercent: 110, duration: 1.1, stagger: 0.018 }, 0.1 + i * 0.16);
+      });
+    };
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(run); else run();
+  }
+})();
+
+/* ═══ QUOTE FORM ═══
+   Sends to Formspree (same endpoint as before). The site's Formspree setup doesn't take file uploads,
+   so drawings still go by email; the success screen opens a pre-addressed email for that. */
+(function () {
+  var form = document.getElementById('quoteForm');
+  if (!form) return;
   var content = document.getElementById('formContent');
   var success = document.getElementById('formSuccess');
-  var btn = document.querySelector('#formContent .form-submit');
-  var btnHTML = btn ? btn.innerHTML : '';
+  var status = document.getElementById('formStatus');
+  var btn = form.querySelector('[type=submit]');
+  var btnText = btn ? btn.innerHTML : '';
+  var checked = form.querySelectorAll('input[required], input[type=email], input[type=tel]');
 
-  var data = new FormData();
-  var inputs = document.querySelectorAll('#formContent .form-input');
-  var missingRequired = false;
-  inputs.forEach(function(el){
-    if (el.hasAttribute('required') && !el.value.trim()) {
-      missingRequired = true;
-      el.style.borderColor = '#d33';
-    } else {
-      el.style.borderColor = '';
-    }
-    data.append(el.name || 'field', el.value);
-  });
-  if (missingRequired) {
-    if (btn) {
-      var old = btn.innerHTML;
-      btn.innerHTML = 'Please fill in the required fields';
-      setTimeout(function(){ btn.innerHTML = old; }, 2500);
-    }
-    return;
+  function fieldError(el, msg) {
+    var err = document.getElementById(el.id + '-err');
+    if (msg) { el.setAttribute('aria-invalid', 'true'); if (err) err.textContent = msg; }
+    else { el.removeAttribute('aria-invalid'); if (err) err.textContent = ''; }
   }
+  function check(el) {
+    var v = el.value.trim();
+    if (el.required && !v) { fieldError(el, 'Please fill this in.'); return false; }
+    if (el.type === 'email' && v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { fieldError(el, 'That email address doesn’t look right.'); return false; }
+    if (el.type === 'tel' && v && v.replace(/[^0-9]/g, '').length < 7) { fieldError(el, 'Please give a number we can call.'); return false; }
+    fieldError(el, ''); return true;
+  }
+  checked.forEach(function (el) {
+    el.addEventListener('blur', function () { if (el.value.trim() || el.getAttribute('aria-invalid')) check(el); });
+  });
 
-  var emailEl = document.querySelector('#formContent input[name="email"]');
-  var companyEl = document.querySelector('#formContent input[name="company"]');
-  var company = companyEl ? companyEl.value.trim() : '';
-  if (emailEl) data.append('_replyto', emailEl.value);
-  data.append('_subject', 'Website quote request from ' + (company || 'a new customer'));
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    status.textContent = ''; status.className = 'form-status';
+    var firstBad = null;
+    checked.forEach(function (el) { if (!check(el) && !firstBad) firstBad = el; });
+    if (firstBad) {
+      status.textContent = 'Some details are missing or need checking. They’re marked below.';
+      status.className = 'form-status is-error';
+      firstBad.focus();
+      return;
+    }
+    var data = new FormData(form);
+    var company = (data.get('company') || '').toString().trim();
+    data.append('_subject', 'Website quote request from ' + (company || 'a new customer'));
+    var email = (data.get('email') || '').toString().trim();
+    if (email) data.append('_replyto', email);
 
-  if (btn) { btn.disabled = true; btn.innerHTML = 'Sending...'; }
-  try {
-    var res = await fetch('https://formspree.io/f/xpqeznvj', {
-      method: 'POST',
-      body: data,
-      headers: { 'Accept': 'application/json' }
-    });
-    if (res.ok) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+    try {
+      var res = await fetch(form.action, { method: 'POST', body: data, headers: { 'Accept': 'application/json' } });
+      if (!res.ok) throw new Error('Send failed');
       var mail = document.getElementById('quoteMail');
       if (mail) mail.href = 'mailto:john.hume@jnrengineeringltd.co.uk?subject=' + encodeURIComponent('Drawings for quote request, ' + (company || 'your company name'));
-      if (content) content.classList.add('form-hidden');
-      if (success) success.classList.add('show');
-      var wrap = document.querySelector('.q-form-wrap');
-      if (wrap) { var y = wrap.getBoundingClientRect().top + window.scrollY - 110; if (window.lenis) window.lenis.scrollTo(y); else window.scrollTo({ top: y, behavior: 'smooth' }); }
-    } else {
-      throw new Error('Send failed');
+      content.classList.add('form-hidden');
+      success.classList.add('show');
+      var h = success.querySelector('h2'); if (h) { h.setAttribute('tabindex', '-1'); h.focus(); }
+    } catch (err) {
+      status.innerHTML = 'That didn’t send. Your details are still here, so try again, or call <a href="tel:01416475913">0141 647 5913</a> or email <a href="mailto:john.hume@jnrengineeringltd.co.uk">john.hume@jnrengineeringltd.co.uk</a>.';
+      status.className = 'form-status is-error';
+      if (btn) { btn.disabled = false; btn.innerHTML = btnText; }
     }
-  } catch (err) {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = 'Could not send. Please email us directly.';
-      setTimeout(function(){
-        btn.innerHTML = btnHTML;
-      }, 4000);
-    }
-  }
-}
-
-/* ═══ INIT ═══ */
-if (!('IntersectionObserver' in window)) {
-  document.querySelectorAll('.rv, .rv-img').forEach(function(el){ el.classList.add('in'); });
-} else { initReveal(); }
-setTimeout(function(){ document.querySelectorAll('.page.active .rv, .page.active .rv-img').forEach(function(el){ el.classList.add('in'); }); }, 2500);
-
-/* ═══ MOTION: Lenis smooth scroll + GSAP ═══ */
-(function(){
-  if (!window.gsap || !window.ScrollTrigger) return;
-  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var fine = window.matchMedia('(pointer: fine)').matches;
-  gsap.registerPlugin(ScrollTrigger);
-
-  // Smooth scroll (desktop wheel only, touch stays native)
-  if (!reduce && window.Lenis) {
-    var lenis = new Lenis({ lerp: 0.09, wheelMultiplier: 0.95 });
-    window.lenis = lenis;
-    lenis.on('scroll', ScrollTrigger.update);
-    gsap.ticker.add(function(t){ lenis.raf(t * 1000); });
-    gsap.ticker.lagSmoothing(0);
-    var _toggle = window.toggleMenu;
-    window.toggleMenu = function(){
-      _toggle();
-      if (document.getElementById('mobileMenu').classList.contains('open')) lenis.stop(); else lenis.start();
-    };
-  }
-
-  // Magnetic buttons
-  if (fine && !reduce) {
-    document.querySelectorAll('.magnetic').forEach(function(b){
-      var xTo = gsap.quickTo(b, 'x', { duration: 0.6, ease: 'power3' });
-      var yTo = gsap.quickTo(b, 'y', { duration: 0.6, ease: 'power3' });
-      b.addEventListener('mousemove', function(e){
-        var r = b.getBoundingClientRect();
-        xTo((e.clientX - r.left - r.width / 2) * 0.22);
-        yTo((e.clientY - r.top - r.height / 2) * 0.35);
-      });
-      b.addEventListener('mouseleave', function(){ xTo(0); yTo(0); });
-    });
-  }
-
-  if (reduce) { document.querySelectorAll('.proc-step').forEach(function(el){ el.classList.add('on'); }); return; }
-
-  // Ticker: steady drift, speeds up with scroll and follows scroll direction
-  var track = document.querySelector('.ticker-track');
-  if (track) {
-    track.style.animation = 'none';
-    var tx = 0, dir = -1, boost = 0, base = 0.55, slow = 1;
-    gsap.ticker.add(function(){
-      var half = track.scrollWidth / 2;
-      if (!half) return;
-      tx += (base * slow + boost) * dir;
-      if (tx <= -half) tx += half;
-      if (tx > 0) tx -= half;
-      gsap.set(track, { x: tx });
-      boost *= 0.93;
-    });
-    ScrollTrigger.create({ onUpdate: function(self){
-      boost = Math.min(Math.abs(self.getVelocity()) / 260, 9);
-      dir = self.direction === 1 ? -1 : 1;
-    }});
-    var tk = track.parentNode;
-    tk.addEventListener('mouseenter', function(){ gsap.to({v: slow}, { v: 0.25, duration: 0.6, onUpdate: function(){ slow = this.targets()[0].v; } }); });
-    tk.addEventListener('mouseleave', function(){ gsap.to({v: slow}, { v: 1, duration: 0.6, onUpdate: function(){ slow = this.targets()[0].v; } }); });
-  }
-
-  // Hero headline builds in letter by letter
-  var hl = document.querySelectorAll('.hero h1 .line > span');
-  if (hl.length && window.SplitText) {
-    gsap.registerPlugin(SplitText);
-    document.documentElement.classList.add('split-on');
-    document.fonts.ready.then(function(){
-      var tl = gsap.timeline({ defaults: { ease: 'expo.out' } });
-      tl.from('.hero .hero-bg', { opacity: 0, duration: 1.8, ease: 'power2.out' }, 0);
-      hl.forEach(function(ln, i){
-        var sp = new SplitText(ln, { type: 'words,chars' });
-        tl.from(sp.chars, { yPercent: 115, duration: 1.15, stagger: 0.02 }, 0.25 + i * 0.18);
-      });
-    });
-  }
-
-  // Hero content drifts up and fades as you scroll away
-  var hc = document.querySelector('.hero-content, .page-hero-content');
-  var hero = document.querySelector('.hero, .page-hero');
-  if (hc && hero) {
-    gsap.to(hc, { yPercent: -12, opacity: 0.15, ease: 'none',
-      scrollTrigger: { trigger: hero, start: 'top top', end: 'bottom top', scrub: true } });
-  }
-
-  // How quoting works: steps light up one by one
-  var proc = document.getElementById('process');
-  if (proc) {
-    var steps = proc.querySelectorAll('.proc-step');
-    var bar = proc.querySelector('.proc-bar span');
-    var mm = gsap.matchMedia();
-    mm.add('(min-width: 1101px)', function(){
-      // Pinned: the section holds still while the steps slide across
-      var grid = proc.querySelector('.proc-grid');
-      var inner = proc.querySelector('.section-inner');
-      proc.classList.add('proc-pinned');
-      var dist = function(){ return Math.max(0, grid.scrollWidth - inner.clientWidth); };
-      var tw = gsap.to(grid, {
-        x: function(){ return -dist(); }, ease: 'none',
-        scrollTrigger: {
-          trigger: proc, start: 'top top', end: function(){ return '+=' + (dist() + 500); },
-          pin: true, scrub: 0.8, invalidateOnRefresh: true,
-          onUpdate: function(self){
-            var p = self.progress;
-            gsap.set(bar, { scaleX: p });
-            steps.forEach(function(s, i){ s.classList.toggle('on', p >= i / steps.length + 0.02); });
-          }
-        }
-      });
-      return function(){ tw.scrollTrigger.kill(); tw.kill(); gsap.set(grid, { x: 0 }); proc.classList.remove('proc-pinned'); steps.forEach(function(s){ s.classList.remove('on'); }); };
-    });
-    mm.add('(max-width: 1100px)', function(){
-      var sts = [];
-      steps.forEach(function(s){
-        sts.push(ScrollTrigger.create({ trigger: s, start: 'top 70%', onEnter: function(){ s.classList.add('on'); }, onLeaveBack: function(){ s.classList.remove('on'); } }));
-      });
-      return function(){ sts.forEach(function(t){ t.kill(); }); };
-    });
-  }
-
-  window.addEventListener('load', function(){ ScrollTrigger.refresh(); });
+  });
 })();
