@@ -9,9 +9,19 @@ navState();
 
 /* ═══ MOBILE MENU ═══ */
 function toggleMenu(){
-  document.getElementById('mobileMenu').classList.toggle('open');
-  document.getElementById('burger').classList.toggle('open');
+  var menu = document.getElementById('mobileMenu');
+  var open = menu.classList.toggle('open');
+  menu.inert = !open;
+  var burger = document.getElementById('burger');
+  burger.classList.toggle('open', open);
+  burger.setAttribute('aria-expanded', open ? 'true' : 'false');
+  burger.setAttribute('aria-label', open ? 'Close menu' : 'Menu');
+  nav.classList.toggle('menu-open', open);
 }
+// Escape closes the menu
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape' && document.getElementById('mobileMenu').classList.contains('open')) window.toggleMenu();
+});
 
 /* ═══ SCROLL REVEAL ═══ */
 var obs;
@@ -56,32 +66,35 @@ async function submitForm() {
   var btn = document.querySelector('#formContent .form-submit');
   var btnHTML = btn ? btn.innerHTML : '';
 
+  var status = document.getElementById('formStatus');
+  if (status) status.textContent = '';
+
+  // Each required field says what's wrong under it; the first one with a problem gets the focus
   var data = new FormData();
   var inputs = document.querySelectorAll('#formContent .form-input');
-  var missingRequired = false;
+  var firstBad = null;
   inputs.forEach(function(el){
-    if (el.hasAttribute('required') && !el.value.trim()) {
-      missingRequired = true;
-      el.style.borderColor = '#d33';
-    } else {
-      el.style.borderColor = '';
-    }
+    var err = document.getElementById(el.id + '-err');
+    var value = el.value.trim();
+    var msg = '';
+    if (el.hasAttribute('required') && !value) msg = 'Please fill this in.';
+    else if (el.type === 'email' && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) msg = 'That email address doesn’t look right.';
+    el.classList.toggle('is-bad', !!msg);
+    el.setAttribute('aria-invalid', msg ? 'true' : 'false');
+    if (err) err.textContent = msg;
+    if (msg && !firstBad) firstBad = el;
     data.append(el.name || 'field', el.value);
   });
-  if (missingRequired) {
-    if (btn) {
-      var old = btn.innerHTML;
-      btn.innerHTML = 'Please fill in the required fields';
-      setTimeout(function(){ btn.innerHTML = old; }, 2500);
-    }
-    return;
-  }
+  if (firstBad) { firstBad.focus(); return; }
 
   var emailEl = document.querySelector('#formContent input[name="email"]');
   var companyEl = document.querySelector('#formContent input[name="company"]');
+  var urgentEl = document.getElementById('q-urgent');
+  var urgent = !!(urgentEl && urgentEl.checked);
   var company = companyEl ? companyEl.value.trim() : '';
   if (emailEl) data.append('_replyto', emailEl.value);
-  data.append('_subject', 'Website quote request from ' + (company || 'a new customer'));
+  data.append('urgent', urgent ? 'Yes' : 'No');
+  data.append('_subject', (urgent ? 'URGENT: ' : '') + 'Website quote request from ' + (company || 'a new customer'));
 
   if (btn) { btn.disabled = true; btn.innerHTML = 'Sending...'; }
   try {
@@ -101,15 +114,38 @@ async function submitForm() {
       throw new Error('Send failed');
     }
   } catch (err) {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = 'Could not send. Please email us directly.';
-      setTimeout(function(){
-        btn.innerHTML = btnHTML;
-      }, 4000);
-    }
+    // Stays on screen with the way round it; nothing typed is lost
+    if (btn) { btn.disabled = false; btn.innerHTML = btnHTML; }
+    if (status) status.innerHTML = 'Your request didn’t send. Nothing you typed is lost: try again, or email it to <a href="mailto:john.hume@jnrengineeringltd.co.uk">john.hume@jnrengineeringltd.co.uk</a> or phone <a href="tel:01416475913">0141 647 5913</a>.';
   }
 }
+
+// A field's message clears as soon as it's fixed
+document.querySelectorAll('#formContent .form-input').forEach(function(el){
+  el.addEventListener('input', function(){
+    if (!el.classList.contains('is-bad') || !el.value.trim()) return;
+    el.classList.remove('is-bad');
+    el.setAttribute('aria-invalid', 'false');
+    var err = document.getElementById(el.id + '-err');
+    if (err) err.textContent = '';
+  });
+});
+
+/* ═══ CALL BAR (phones) ═══ */
+// On a breakdown people ring, so phones get a call button that stays on screen. It uses the page's own phone link.
+(function(){
+  var tel = document.querySelector('footer a[href^="tel:"]');
+  if (!tel) return;
+  var bar = document.createElement('a');
+  bar.className = 'call-bar';
+  bar.href = tel.getAttribute('href');
+  bar.innerHTML = '<span>Breakdown or urgent job?</span><b>Call the workshop</b>';
+  document.body.appendChild(bar);
+})();
+
+// The closed menu is out of reach for keyboards and screen readers
+var mobileMenu = document.getElementById('mobileMenu');
+if (mobileMenu) mobileMenu.inert = !mobileMenu.classList.contains('open');
 
 /* ═══ INIT ═══ */
 if (!('IntersectionObserver' in window)) {

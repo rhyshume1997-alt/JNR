@@ -47,12 +47,12 @@
 
 <!-- ═══ MOBILE MENU ═══ -->
 <div class="mobile-menu" id="mobileMenu">
-  <a href="/"><small>01</small>Home</a>
-  <a href="/about"><small>02</small>About</a>
-  <a href="/services"><small>03</small>Services</a>
-  <a href="/work"><small>04</small>Our Work</a>
-  <a href="/team"><small>05</small>Meet The Team</a>
-  <a href="/quote"><small>06</small>Get A Quote</a>
+  <a href="/">Home</a>
+  <a href="/about">About</a>
+  <a href="/services">Services</a>
+  <a href="/work">Our Work</a>
+  <a href="/team">Meet The Team</a>
+  <a href="/quote">Get A Quote</a>
 </div>
 
 <div id="page-quote" class="page active">
@@ -60,9 +60,7 @@
   <div class="page-hero" style="min-height:52svh">
     <div class="hero-bg bg-mach"></div>
     <div class="hero-shade"></div>
-    <div class="hero-grid"></div>
     <div class="page-hero-content">
-      <div class="hero-kicker" style="animation-delay:0.3s">Get A Price</div>
       <h1><span class="line"><span style="animation-delay:0.45s">Request A Quote.</span></span><span class="line"><span style="animation-delay:0.6s"><em>Get A Straight Price.</em></span></span></h1>
       <p class="hero-sub">Tell us about the job, then email your drawings with your company name in the subject line. We'll come back with a price and a lead time.</p>
     </div>
@@ -72,28 +70,33 @@
     <div class="quote-layout">
 
       <div class="q-form-wrap">
-        <div id="formContent">
+        <form id="formContent" novalidate onsubmit="event.preventDefault(); submitForm();">
           <h2>Quote Form</h2>
           <div class="form-grid">
             <div class="form-group">
-              <label class="form-label">Full Name *</label>
-              <input type="text" class="form-input" name="full_name" required>
+              <label class="form-label" for="q-name">Full name *</label>
+              <input type="text" class="form-input" id="q-name" name="full_name" autocomplete="name" required aria-describedby="q-name-err">
+              <span class="form-err" id="q-name-err"></span>
             </div>
             <div class="form-group">
-              <label class="form-label">Company Name *</label>
-              <input type="text" class="form-input" name="company" required>
+              <label class="form-label" for="q-company">Company name *</label>
+              <input type="text" class="form-input" id="q-company" name="company" autocomplete="organization" required aria-describedby="q-company-err">
+              <span class="form-err" id="q-company-err"></span>
             </div>
             <div class="form-group">
-              <label class="form-label">Phone Number *</label>
-              <input type="tel" class="form-input" name="phone" required>
+              <label class="form-label" for="q-phone">Phone number *</label>
+              <input type="tel" class="form-input" id="q-phone" name="phone" autocomplete="tel" required aria-describedby="q-phone-err">
+              <span class="form-err" id="q-phone-err"></span>
             </div>
             <div class="form-group">
-              <label class="form-label">Email Address *</label>
-              <input type="email" class="form-input" name="email" required>
+              <label class="form-label" for="q-email">Email address *</label>
+              <input type="email" class="form-input" id="q-email" name="email" autocomplete="email" required aria-describedby="q-email-err">
+              <span class="form-err" id="q-email-err"></span>
             </div>
             <div class="form-group full">
-              <label class="form-label">Service Required</label>
-              <select class="form-input" name="service">
+              <label class="form-label" for="q-service">Service required</label>
+              <select class="form-input" id="q-service" name="service">
+                <option value="">Choose a service</option>
                 <option>CNC Milling</option>
                 <option>CNC Turning</option>
                 <option>CNC Machining</option>
@@ -104,20 +107,27 @@
               </select>
             </div>
             <div class="form-group full">
-              <label class="form-label">Tell Us About The Job</label>
-              <textarea class="form-input" name="message" placeholder="Quantity, material, tolerances, deadline. Anything that helps us quote it right."></textarea>
+              <label class="form-label" for="q-message">Tell us about the job</label>
+              <textarea class="form-input" id="q-message" name="message" placeholder="Quantity, material, tolerances, deadline. Anything that helps us quote it right."></textarea>
             </div>
             <div class="form-group full">
-              <label class="form-label">Drawings</label>
+              <label class="form-check" for="q-urgent">
+                <input type="checkbox" id="q-urgent" name="urgent" value="Yes">
+                <span><b>It's urgent or a breakdown</b>We'll flag it and get back to you as fast as the job allows. For a breakdown, phone us as well on <a href="tel:01416475913">0141 647 5913</a>.</span>
+              </label>
+            </div>
+            <div class="form-group full">
+              <span class="form-label">Drawings</span>
               <div class="file-drop" style="cursor:default;text-align:left">
                 <b>How to send your drawings</b>
                 <small>Once you've sent this form, email your drawings to <a href="mailto:john.hume@jnrengineeringltd.co.uk" style="color:var(--blue)">john.hume@jnrengineeringltd.co.uk</a> with your company name in the subject line. DXF, DWG, STEP, IGES, PDF, STL and photos are all fine.</small>
               </div>
             </div>
           </div>
-          <button class="btn btn-primary magnetic form-submit" onclick="submitForm()"><span class="btn-roll"><span>Send Quote Request</span><span aria-hidden="true">Send Quote Request</span></span></button>
+          <button type="submit" class="btn btn-primary magnetic form-submit"><span class="btn-roll"><span>Send Quote Request</span><span aria-hidden="true">Send Quote Request</span></span></button>
+          <p class="form-status" id="formStatus" role="alert"></p>
           <p class="form-note">Your drawings are kept confidential.</p>
-        </div>
+        </form>
 
         <div id="formSuccess">
           <div class="ok-ring"></div>
@@ -129,7 +139,6 @@
 
       <div class="q-aside">
         <div class="q-aside-card">
-          <div class="eyebrow">Contact</div>
           <h3>Speak To An Engineer</h3>
           <p>Phone the workshop and you'll speak to the people who make the parts.</p>
           <div class="q-contact">
@@ -152,7 +161,7 @@
           </div>
         </div>
         <div class="q-aside-card">
-          <div class="eyebrow">Hours</div>
+          <h3>Workshop hours</h3>
           <div class="q-hours">
             MON TO THU <b>07:30 to 16:30</b><br>
             FRI <b>07:30 to 14:30</b><br>
