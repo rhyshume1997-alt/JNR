@@ -59,18 +59,93 @@ function runCounters(scope){
   });
 }
 
-/* ═══ FORM SUBMIT (Formspree) ═══ */
+/* ═══ QUOTE FORM: drawings and submit ═══ */
+var MAX_FILES = 4;
+var MAX_BYTES = 4 * 1024 * 1024;
+var FILE_EXT = ['pdf', 'dxf', 'dwg', 'step', 'stp', 'iges', 'igs', 'jpg', 'jpeg', 'png'];
+var chosenFiles = [];
+
+function fmtSize(n){
+  if (n < 1024 * 1024) return Math.max(1, Math.round(n / 1024)) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// Returns a message if the files can't be sent, or an empty string
+function checkFiles(list){
+  if (list.length > MAX_FILES) return 'Please send no more than 4 drawings. Remove one and try again.';
+  var total = 0;
+  for (var i = 0; i < list.length; i++) {
+    var ext = (list[i].name.split('.').pop() || '').toLowerCase();
+    if (FILE_EXT.indexOf(ext) === -1) return '"' + list[i].name + '" is not a file type we can take. We can take PDF, DXF, DWG, STEP, IGES, JPG and PNG.';
+    total += list[i].size;
+  }
+  if (total > MAX_BYTES) return 'Your drawings are ' + fmtSize(total) + ' in total. The limit is 4 MB, so please email the bigger files instead.';
+  return '';
+}
+
+function renderFiles(){
+  var ul = document.getElementById('fileList');
+  var err = document.getElementById('q-files-err');
+  if (!ul) return;
+  ul.innerHTML = '';
+  chosenFiles.forEach(function(f, i){
+    var li = document.createElement('li');
+    var name = document.createElement('span');
+    name.textContent = f.name;
+    var size = document.createElement('small');
+    size.textContent = fmtSize(f.size);
+    name.appendChild(size);
+    var rm = document.createElement('button');
+    rm.type = 'button';
+    rm.textContent = 'Remove';
+    rm.setAttribute('aria-label', 'Remove ' + f.name);
+    rm.addEventListener('click', function(){ chosenFiles.splice(i, 1); renderFiles(); });
+    li.appendChild(name);
+    li.appendChild(rm);
+    ul.appendChild(li);
+  });
+  if (err) err.textContent = checkFiles(chosenFiles);
+}
+
+function addFiles(fileList){
+  Array.prototype.forEach.call(fileList, function(f){
+    var dupe = chosenFiles.some(function(c){ return c.name === f.name && c.size === f.size; });
+    if (!dupe) chosenFiles.push(f);
+  });
+  renderFiles();
+}
+
+(function(){
+  var drop = document.getElementById('drawing');
+  var input = document.getElementById('q-files');
+  var stamp = document.getElementById('q-t');
+  if (stamp) stamp.value = String(Date.now());
+  if (!drop || !input) return;
+  input.addEventListener('change', function(){ addFiles(input.files); input.value = ''; });
+  ['dragenter', 'dragover'].forEach(function(ev){
+    drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('over'); });
+  });
+  ['dragleave', 'drop'].forEach(function(ev){
+    drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('over'); });
+  });
+  drop.addEventListener('drop', function(e){ if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files); });
+  // Linked from elsewhere with #drawing: bring the box into view
+  if (location.hash === '#drawing') setTimeout(function(){ drop.scrollIntoView({ block: 'center' }); }, 300);
+  // The server sends people back here if the form was submitted without JavaScript and failed
+  if (/[?&]sent=error/.test(location.search)) {
+    var st = document.getElementById('formStatus');
+    if (st) st.innerHTML = 'Your request didn’t send. Please try again, or email it to <a href="mailto:john.hume@jnrengineeringltd.co.uk">john.hume@jnrengineeringltd.co.uk</a> or phone <a href="tel:01416475913">0141 647 5913</a>.';
+  }
+})();
+
 async function submitForm() {
-  var content = document.getElementById('formContent');
-  var success = document.getElementById('formSuccess');
+  var form = document.getElementById('formContent');
   var btn = document.querySelector('#formContent .form-submit');
   var btnHTML = btn ? btn.innerHTML : '';
-
   var status = document.getElementById('formStatus');
   if (status) status.textContent = '';
 
   // Each required field says what's wrong under it; the first one with a problem gets the focus
-  var data = new FormData();
   var inputs = document.querySelectorAll('#formContent .form-input');
   var firstBad = null;
   inputs.forEach(function(el){
@@ -83,40 +158,51 @@ async function submitForm() {
     el.setAttribute('aria-invalid', msg ? 'true' : 'false');
     if (err) err.textContent = msg;
     if (msg && !firstBad) firstBad = el;
-    data.append(el.name || 'field', el.value);
   });
+  var fileMsg = checkFiles(chosenFiles);
+  var fileErr = document.getElementById('q-files-err');
+  if (fileErr) fileErr.textContent = fileMsg;
   if (firstBad) { firstBad.focus(); return; }
+  if (fileMsg) { var drop = document.getElementById('drawing'); if (drop) drop.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
 
-  var emailEl = document.querySelector('#formContent input[name="email"]');
-  var companyEl = document.querySelector('#formContent input[name="company"]');
+  var data = new FormData(form);
+  data.delete('drawings');
+  chosenFiles.forEach(function(f){ data.append('drawings', f, f.name); });
   var urgentEl = document.getElementById('q-urgent');
-  var urgent = !!(urgentEl && urgentEl.checked);
-  var company = companyEl ? companyEl.value.trim() : '';
-  if (emailEl) data.append('_replyto', emailEl.value);
-  data.append('urgent', urgent ? 'Yes' : 'No');
-  data.append('_subject', (urgent ? 'URGENT: ' : '') + 'Website quote request from ' + (company || 'a new customer'));
+  data.set('urgent', urgentEl && urgentEl.checked ? 'Yes' : 'No');
 
   if (btn) { btn.disabled = true; btn.innerHTML = 'Sending...'; }
   try {
-    var res = await fetch('https://formspree.io/f/xpqeznvj', {
-      method: 'POST',
-      body: data,
-      headers: { 'Accept': 'application/json' }
-    });
-    if (res.ok) {
-      var mail = document.getElementById('quoteMail');
-      if (mail) mail.href = 'mailto:john.hume@jnrengineeringltd.co.uk?subject=' + encodeURIComponent('Drawings for quote request, ' + (company || 'your company name'));
-      if (content) content.classList.add('form-hidden');
-      if (success) success.classList.add('show');
-      var wrap = document.querySelector('.q-form-wrap');
-      if (wrap) { var y = wrap.getBoundingClientRect().top + window.scrollY - 110; if (window.lenis) window.lenis.scrollTo(y); else window.scrollTo({ top: y, behavior: 'smooth' }); }
-    } else {
-      throw new Error('Send failed');
+    var res = await fetch('/api/quote', { method: 'POST', body: data, headers: { 'Accept': 'application/json' } });
+    var json = null;
+    try { json = await res.json(); } catch (e) { json = null; }
+    if (res.ok && json && json.ok) {
+      window.location.href = '/thanks';
+      return;
     }
+    // The server says what was wrong where it can
+    if (json && json.errors) {
+      var map = { full_name: 'q-name', company: 'q-company', phone: 'q-phone', email: 'q-email', required_by: 'q-required-by', drawings: 'q-files' };
+      var first = null;
+      Object.keys(json.errors).forEach(function(k){
+        var id = map[k];
+        var span = id && document.getElementById(id + '-err');
+        if (span) span.textContent = json.errors[k];
+        var field = id && document.getElementById(id);
+        if (field && field.classList) field.classList.add('is-bad');
+        if (field && !first) first = field;
+      });
+      if (btn) { btn.disabled = false; btn.innerHTML = btnHTML; }
+      if (first && first.focus) first.focus();
+      if (status) status.textContent = json.error || 'Some details need another look.';
+      return;
+    }
+    throw new Error((json && json.error) || 'Send failed');
   } catch (err) {
     // Stays on screen with the way round it; nothing typed is lost
     if (btn) { btn.disabled = false; btn.innerHTML = btnHTML; }
-    if (status) status.innerHTML = 'Your request didn’t send. Nothing you typed is lost: try again, or email it to <a href="mailto:john.hume@jnrengineeringltd.co.uk">john.hume@jnrengineeringltd.co.uk</a> or phone <a href="tel:01416475913">0141 647 5913</a>.';
+    var why = err && err.message && err.message !== 'Send failed' && err.message.indexOf('fetch') === -1 ? err.message + ' ' : '';
+    if (status) status.innerHTML = why + 'Your request didn’t send. Nothing you typed is lost: try again, or email it to <a href="mailto:john.hume@jnrengineeringltd.co.uk">john.hume@jnrengineeringltd.co.uk</a> or phone <a href="tel:01416475913">0141 647 5913</a>.';
   }
 }
 
@@ -131,15 +217,18 @@ document.querySelectorAll('#formContent .form-input').forEach(function(el){
   });
 });
 
-/* ═══ CALL BAR (phones) ═══ */
-// On a breakdown people ring, so phones get a call button that stays on screen. It uses the page's own phone link.
+/* ═══ CALL AND QUOTE BAR (phones) ═══ */
+// On a breakdown people ring, and everyone else wants to send a drawing, so phones get both buttons staying on screen.
 (function(){
   var tel = document.querySelector('footer a[href^="tel:"]');
   if (!tel) return;
-  var bar = document.createElement('a');
-  bar.className = 'call-bar';
-  bar.href = tel.getAttribute('href');
-  bar.innerHTML = '<span>Breakdown or urgent job?</span><b>Call the workshop</b>';
+  var onQuote = !!document.getElementById('page-quote') || !!document.getElementById('page-thanks');
+  var bar = document.createElement('div');
+  bar.className = 'call-bar' + (onQuote ? ' call-only' : '');
+  bar.setAttribute('role', 'group');
+  bar.setAttribute('aria-label', 'Call or send a drawing');
+  bar.innerHTML = '<a class="call-bar-call" href="' + tel.getAttribute('href') + '"><span>Breakdown or urgent?</span><b>Call us</b></a>' +
+    (onQuote ? '' : '<a class="call-bar-quote" href="/quote#drawing"><span>Got a drawing?</span><b>Send it for a quote</b></a>');
   document.body.appendChild(bar);
 })();
 

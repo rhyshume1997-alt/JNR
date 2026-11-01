@@ -1,4 +1,7 @@
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /thanks
+Disallow: /projects/_template
 
 Sitemap: https://jnrengineering.co.uk/sitemap.xml
