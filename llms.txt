@@ -17,7 +17,7 @@ Based in Hamilton, South Lanarkshire, serving customers across the United Kingdo
 
 ## Get a quote
 
-- [Send a drawing for a quote](https://jnrengineering.co.uk/quote): form with drawing upload (PDF, DXF, DWG, STEP, IGES, JPG, PNG, up to 4 files and 4MB in total)
+- [Send a drawing for a quote](https://jnrengineering.co.uk/quote): form with drawing upload (PDF, DXF, DWG, STEP, IGES, STL, JPG, PNG, up to 4 files and 4MB in total)
 - Phone: 0141 647 5913 (breakdowns and urgent jobs too)
 - Email: john.hume@jnrengineeringltd.co.uk
 - Workshop hours: Monday to Thursday 07:30 to 16:30, Friday 07:30 to 14:30, closed at weekends

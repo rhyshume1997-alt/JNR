@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "description": "J.N.R. Engineering website: static pages plus the /api/quote function",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": "20.x"
+  },
   "dependencies": {
     "busboy": "^1.6.0"
   }

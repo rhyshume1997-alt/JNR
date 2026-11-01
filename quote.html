@@ -15,7 +15,7 @@
 <meta property="og:locale" content="en_GB">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Request A Quote | J.N.R. Engineering Ltd">
-<meta name="twitter:description" content="Request a quote from J.N.R. Engineering. Fill in the form, email your drawings and we&#x27;ll come back with a price and a lead time.">
+<meta name="twitter:description" content="Request a quote from J.N.R. Engineering. Fill in the form, upload your drawings and we'll come back with a price and a lead time.">
 <meta name="twitter:image" content="https://jnrengineering.co.uk/assets/mill.jpg">
 <link rel="icon" type="image/png" sizes="64x64" href="/assets/favicon.png">
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
@@ -163,8 +163,6 @@
     <li><a id="nl-home" href="/">Home</a></li>
     <li><a id="nl-about" href="/about">About</a></li>
     <li><a id="nl-services" href="/services">Services</a></li>
-    <li><a id="nl-work" href="/work">Our Work</a></li>
-    <li><a id="nl-team" href="/team">Meet The Team</a></li>
   </ul>
   <a class="nav-tel" href="tel:01416475913" aria-label="Call the workshop on 0141 647 5913">0141 647 5913</a>
   <a class="nav-cta magnetic" href="/quote"><span class="btn-roll"><span>Get A Quote</span><span aria-hidden="true">Get A Quote</span></span></a>
@@ -178,8 +176,6 @@
   <a href="/">Home</a>
   <a href="/about">About</a>
   <a href="/services">Services</a>
-  <a href="/work">Our Work</a>
-  <a href="/team">Meet The Team</a>
   <a href="/quote">Get A Quote</a>
 </div>
 
@@ -262,8 +258,8 @@
             <div class="form-group full" id="drawing-group">
               <span class="form-label" id="drawing-label">Drawings</span>
               <div class="file-drop" id="drawing">
-                <input type="file" class="file-input" id="q-files" name="drawings" multiple accept=".pdf,.dxf,.dwg,.step,.stp,.iges,.igs,.jpg,.jpeg,.png" aria-labelledby="drawing-label" aria-describedby="q-files-help q-files-err">
-                <label for="q-files"><b>Drag your drawings here, or click to choose</b><small id="q-files-help">PDF, DXF, DWG, STEP, IGES, JPG or PNG. Up to 4 files and 4MB in total. Bigger files? Email them to <a href="mailto:john.hume@jnrengineeringltd.co.uk" style="color:var(--blue)">john.hume@jnrengineeringltd.co.uk</a>.</small></label>
+                <input type="file" class="file-input" id="q-files" name="drawings" multiple accept=".pdf,.dxf,.dwg,.step,.stp,.iges,.igs,.stl,.jpg,.jpeg,.png" aria-labelledby="drawing-label" aria-describedby="q-files-help q-files-err">
+                <label for="q-files"><b>Drag your drawings here, or click to choose</b><small id="q-files-help">PDF, DXF, DWG, STEP, IGES, STL, JPG or PNG. Up to 4 files and 4MB in total. Bigger files? Email them to <a href="mailto:john.hume@jnrengineeringltd.co.uk" style="color:var(--blue)">john.hume@jnrengineeringltd.co.uk</a>.</small></label>
               </div>
               <ul class="file-list" id="fileList" aria-live="polite"></ul>
               <span class="form-err" id="q-files-err"></span>
@@ -276,6 +272,7 @@
           </div>
           <button type="submit" class="btn btn-primary magnetic form-submit"><span class="btn-roll"><span>Send Quote Request</span><span aria-hidden="true">Send Quote Request</span></span></button>
           <p class="form-status" id="formStatus" role="alert"></p>
+          <noscript><p class="form-status" style="display:block">If your request didn't send, email <a href="mailto:john.hume@jnrengineeringltd.co.uk">john.hume@jnrengineeringltd.co.uk</a> or phone <a href="tel:01416475913">0141 647 5913</a>.</p></noscript>
           <p class="form-note">Your drawings are kept confidential.</p>
         </form>
       </div>
@@ -331,8 +328,6 @@
         <li><a href="/">Home</a></li>
         <li><a href="/about">About</a></li>
         <li><a href="/services">Services</a></li>
-        <li><a href="/work">Our Work</a></li>
-        <li><a href="/team">Meet The Team</a></li>
         <li><a href="/quote">Get A Quote</a></li>
       </ul>
     </div>

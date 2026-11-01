@@ -8,16 +8,16 @@
   Environment variables (set in Vercel, Project Settings, Environment Variables):
     RESEND_API_KEY  required  API key from resend.com
     QUOTE_TO        required  where quote requests go (the owner's Outlook address, comma separate for more than one)
-    QUOTE_FROM      optional  sender address on a domain verified in Resend, defaults to quotes@jnrengineering.co.uk
+    QUOTE_FROM      optional  sender address on a domain verified in Resend, defaults to info@jnrengineering.co.uk
 */
 
 const Busboy = require('busboy');
 
 const MAX_FILES = 4;
 const MAX_TOTAL_BYTES = 4 * 1024 * 1024; // 4MB of drawings in total (Vercel functions accept about 4.5MB per request)
-const ALLOWED_EXT = ['pdf', 'dxf', 'dwg', 'step', 'stp', 'iges', 'igs', 'jpg', 'jpeg', 'png'];
+const ALLOWED_EXT = ['pdf', 'dxf', 'dwg', 'step', 'stp', 'iges', 'igs', 'stl', 'jpg', 'jpeg', 'png'];
 // RHYS TO SUPPLY: which domain is verified in Resend for sending. The website is jnrengineering.co.uk but the mailboxes use jnrengineeringltd.co.uk. Set QUOTE_FROM in Vercel to an address on the verified domain
-const DEFAULT_FROM = 'quotes@jnrengineering.co.uk';
+const DEFAULT_FROM = 'info@jnrengineering.co.uk';
 const WORKSHOP_PHONE = '0141 647 5913';
 
 // Basic rate limit, per IP, kept in memory. Vercel keeps warm instances for a while, so this slows down
@@ -87,7 +87,7 @@ function extensionOf(name) {
   return m ? m[1].toLowerCase() : '';
 }
 
-// Cheap check that a .pdf, .png or .jpg really is one. The CAD formats are left alone, they vary too much.
+// Cheap check that a .pdf, .png or .jpg really is one. The CAD and STL formats are left alone, they vary too much.
 function looksRight(ext, buf) {
   if (ext === 'pdf') return buf.slice(0, 1024).toString('latin1').indexOf('%PDF') !== -1;
   if (ext === 'png') return buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
@@ -168,7 +168,7 @@ function validate(fields, files) {
     const ext = extensionOf(f.filename);
     total += f.size;
     if (ALLOWED_EXT.indexOf(ext) === -1) {
-      errors.drawings = 'We can take PDF, DXF, DWG, STEP, IGES, JPG and PNG files.';
+      errors.drawings = 'We can take PDF, DXF, DWG, STEP, IGES, STL, JPG and PNG files.';
     } else if (!looksRight(ext, f.data)) {
       errors.drawings = '"' + safeFilename(f.filename) + '" does not look like a real ' + ext.toUpperCase() + ' file.';
     } else {
@@ -208,14 +208,22 @@ function ownerEmail(data, files) {
   return { text: text, html: html };
 }
 
+// The only thing from the form that goes into the customer's confirmation: a first name made of letters,
+// hyphens and apostrophes, 40 characters at most, or "there" if nothing usable is left.
+function safeFirstName(name) {
+  const cleaned = String(name || '').normalize('NFC').replace(/[^\p{L}\s'\u2019-]/gu, ' ').trim();
+  const first = (cleaned.split(/\s+/)[0] || '').replace(/^['\u2019-]+|['\u2019-]+$/g, '').slice(0, 40);
+  return first || 'there';
+}
+
 function customerEmail(data) {
-  const first = data.name.split(' ')[0];
-  const text = 'Hi ' + first + ',\n\nThanks, we\'ve got your drawing and will be in touch.\n\n' +
-    (data.urgent ? 'You marked this as urgent. If it is a breakdown, phone us on ' + WORKSHOP_PHONE + ' as well.\n\n' : '') +
+  const first = safeFirstName(data.name);
+  const text = 'Hi ' + first + ',\n\nThanks, we\u2019ve got your drawing and will be in touch.\n\n' +
+    'If it is a breakdown or an urgent job, phone the workshop on ' + WORKSHOP_PHONE + ' as well.\n\n' +
     'If you need to add anything, reply to this email or phone the workshop on ' + WORKSHOP_PHONE + '.\n\nJ.N.R. Engineering Ltd\nHamilton';
   const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#031339">' +
-    '<p>Hi ' + escapeHtml(first) + ',</p><p>Thanks, we\'ve got your drawing and will be in touch.</p>' +
-    (data.urgent ? '<p>You marked this as urgent. If it is a breakdown, phone us on <a href="tel:01416475913">' + WORKSHOP_PHONE + '</a> as well.</p>' : '') +
+    '<p>Hi ' + escapeHtml(first) + ',</p><p>Thanks, we\u2019ve got your drawing and will be in touch.</p>' +
+    '<p>If it is a breakdown or an urgent job, phone the workshop on <a href="tel:01416475913">' + WORKSHOP_PHONE + '</a> as well.</p>' +
     '<p>If you need to add anything, reply to this email or phone the workshop on <a href="tel:01416475913">' + WORKSHOP_PHONE + '</a>.</p>' +
     '<p>J.N.R. Engineering Ltd<br>Hamilton</p></div>';
   return { text: text, html: html };
@@ -242,7 +250,7 @@ module.exports = async function handler(req, res) {
 
   const ip = clientIp(req);
   if (rateLimited(ip)) {
-    return send(req, res, 429, { ok: false, error: 'You have sent a few requests in a short time. Please wait a few minutes or phone us on ' + WORKSHOP_PHONE + '.' }, '/quote?sent=error');
+    return send(req, res, 429, { ok: false, error: 'You\u2019ve sent a few requests in a short time. Please wait a few minutes and try again.' }, '/quote?sent=error');
   }
 
   let parsed;
@@ -271,7 +279,7 @@ module.exports = async function handler(req, res) {
   const to = String(process.env.QUOTE_TO || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
   if (!process.env.RESEND_API_KEY || !to.length) {
     console.error('quote: RESEND_API_KEY or QUOTE_TO is not set');
-    return send(req, res, 500, { ok: false, error: 'The form is not working right now.' }, '/quote?sent=error');
+    return send(req, res, 500, { ok: false, error: 'The form isn\u2019t working right now.' }, '/quote?sent=error');
   }
   const from = '"J.N.R. Engineering Quotes" <' + (process.env.QUOTE_FROM || DEFAULT_FROM) + '>';
   const d = checked.data;
@@ -289,7 +297,7 @@ module.exports = async function handler(req, res) {
     });
   } catch (err) {
     console.error('quote: owner email failed', err && err.message);
-    return send(req, res, 502, { ok: false, error: 'Your request did not send.' }, '/quote?sent=error');
+    return send(req, res, 502, { ok: false, error: 'Your request didn\u2019t send.' }, '/quote?sent=error');
   }
 
   // The confirmation is a courtesy, a failure here must not lose the request

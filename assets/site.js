@@ -62,7 +62,7 @@ function runCounters(scope){
 /* ═══ QUOTE FORM: drawings and submit ═══ */
 var MAX_FILES = 4;
 var MAX_BYTES = 4 * 1024 * 1024;
-var FILE_EXT = ['pdf', 'dxf', 'dwg', 'step', 'stp', 'iges', 'igs', 'jpg', 'jpeg', 'png'];
+var FILE_EXT = ['pdf', 'dxf', 'dwg', 'step', 'stp', 'iges', 'igs', 'stl', 'jpg', 'jpeg', 'png'];
 var chosenFiles = [];
 
 function fmtSize(n){
@@ -76,7 +76,7 @@ function checkFiles(list){
   var total = 0;
   for (var i = 0; i < list.length; i++) {
     var ext = (list[i].name.split('.').pop() || '').toLowerCase();
-    if (FILE_EXT.indexOf(ext) === -1) return '"' + list[i].name + '" is not a file type we can take. We can take PDF, DXF, DWG, STEP, IGES, JPG and PNG.';
+    if (FILE_EXT.indexOf(ext) === -1) return '"' + list[i].name + '" is not a file type we can take. We can take PDF, DXF, DWG, STEP, IGES, STL, JPG and PNG.';
     total += list[i].size;
   }
   if (total > MAX_BYTES) return 'Your drawings are ' + fmtSize(total) + ' in total. The limit is 4 MB, so please email the bigger files instead.';
@@ -197,13 +197,22 @@ async function submitForm() {
       if (status) status.textContent = json.error || 'Some details need another look.';
       return;
     }
-    throw new Error((json && json.error) || 'Send failed');
+    if (btn) { btn.disabled = false; btn.innerHTML = btnHTML; }
+    showSendError(json && json.error);
   } catch (err) {
     // Stays on screen with the way round it; nothing typed is lost
     if (btn) { btn.disabled = false; btn.innerHTML = btnHTML; }
-    var why = err && err.message && err.message !== 'Send failed' && err.message.indexOf('fetch') === -1 ? err.message + ' ' : '';
-    if (status) status.innerHTML = why + 'Your request didn’t send. Nothing you typed is lost: try again, or email it to <a href="mailto:john.hume@jnrengineeringltd.co.uk">john.hume@jnrengineeringltd.co.uk</a> or phone <a href="tel:01416475913">0141 647 5913</a>.';
+    showSendError('');
   }
+}
+
+// One message, said once: what went wrong (the server's words if it gave any), then the way round it
+function showSendError(serverMessage){
+  var status = document.getElementById('formStatus');
+  if (!status) return;
+  var lead = serverMessage ? String(serverMessage) : 'Your request didn’t send.';
+  var safe = lead.replace(/[&<>"]/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
+  status.innerHTML = safe + ' Nothing you typed is lost: try again, or email <a href="mailto:john.hume@jnrengineeringltd.co.uk">john.hume@jnrengineeringltd.co.uk</a> or phone <a href="tel:01416475913">0141 647 5913</a>.';
 }
 
 // A field's message clears as soon as it's fixed
