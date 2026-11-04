@@ -4,7 +4,7 @@
   "private": true,
   "description": "J.N.R. Engineering website: static pages plus the /api/quote function",
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "dependencies": {
     "busboy": "^1.6.0"
