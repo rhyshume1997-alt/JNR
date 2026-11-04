@@ -1,0 +1,29 @@
+# J.N.R. Engineering Ltd
+
+> J.N.R. Engineering is a family run engineering firm in Hamilton, Scotland, in business since 2006. It does CNC milling, CNC turning, water jet profiling, metal fabrication and inspection in its own workshop, and quotes from a customer's drawing. The people who price a job are the people who make the parts.
+
+## What we do
+
+- [CNC milling](https://jnrengineering.co.uk/capabilities/cnc-milling): 5 axis machine with a 1200 x 750mm bed, ±0.01mm on most materials
+- [CNC turning](https://jnrengineering.co.uk/capabilities/cnc-turning): up to 1 metre across and 3 metres long, or up to 5 metres for parts under 160mm in diameter
+- [Prototypes](https://jnrengineering.co.uk/capabilities/prototypes): one off parts machined to a drawing
+- [Batch production](https://jnrengineering.co.uk/capabilities/batch-production): full production batches, every part measured against the drawing
+- [Materials](https://jnrengineering.co.uk/capabilities/materials): plastics, copper, aluminium, stainless and hardened steel, plus mild steel for fabrication
+- [All services](https://jnrengineering.co.uk/services): milling, turning, machining, water jet profiling, fabrication and inspection
+
+## Area served
+
+Based in Hamilton, South Lanarkshire, serving customers across the United Kingdom.
+
+## Get a quote
+
+- [Send a drawing for a quote](https://jnrengineering.co.uk/quote): form with drawing upload (PDF, DXF, DWG, STEP, IGES, STL, JPG, PNG, up to 4 files and 4MB in total)
+- Phone: 0141 647 5913 (breakdowns and urgent jobs too)
+- Email: john.hume@jnrengineeringltd.co.uk
+- Workshop hours: Monday to Thursday 07:30 to 16:30, Friday 07:30 to 14:30, closed at weekends
+- Address: Block 8 Unit 1, Whistleberry Industrial Estate, Hamilton, ML3 0ED
+
+## More
+
+- [About](https://jnrengineering.co.uk/about)
+- [Privacy](https://jnrengineering.co.uk/privacy)

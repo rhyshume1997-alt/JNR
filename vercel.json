@@ -1,3 +1,10 @@
 {
-  "cleanUrls": true
+  "cleanUrls": true,
+  "redirects": [
+    {
+      "source": "/work",
+      "destination": "/projects/",
+      "statusCode": 301
+    }
+  ]
 }
