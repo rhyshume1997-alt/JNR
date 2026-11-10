@@ -138,6 +138,8 @@ function addFiles(fileList){
   }
 })();
 
+function resetCheck(){ if (window.turnstile) { try { window.turnstile.reset(); } catch (e) { /* ignore */ } } }
+
 async function submitForm() {
   var form = document.getElementById('formContent');
   var btn = document.querySelector('#formContent .form-submit');
@@ -195,13 +197,16 @@ async function submitForm() {
       if (btn) { btn.disabled = false; btn.innerHTML = btnHTML; }
       if (first && first.focus) first.focus();
       if (status) status.textContent = json.error || 'Some details need another look.';
+      resetCheck();
       return;
     }
     if (btn) { btn.disabled = false; btn.innerHTML = btnHTML; }
+    resetCheck();
     showSendError(json && json.error);
   } catch (err) {
     // Stays on screen with the way round it; nothing typed is lost
     if (btn) { btn.disabled = false; btn.innerHTML = btnHTML; }
+    resetCheck();
     showSendError('');
   }
 }
