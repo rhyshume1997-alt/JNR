@@ -1720,3 +1720,10 @@ nav .nav-tel:focus-visible { outline: 2px solid var(--blue-soft); outline-offset
 
 /* Reviews */
 .reviews { padding-top: 70px; padding-bottom: 70px; border-top: 1px solid var(--line); }
+
+/* Security check: room under the Cloudflare box, and our own line saying it has passed */
+.cf-turnstile { margin: 26px 0 0; min-height: 65px; max-width: 100%; }
+.ts-status { margin: 8px 0 0; font-size: 14px; line-height: 1.45; min-height: 1.45em; color: var(--ink); }
+.ts-status.is-ok { color: #1E6B3A; font-weight: 600; }
+.ts-status.is-ok::before { content: '\2713'; display: inline-block; margin-right: 6px; }
+.ts-status.is-warn { color: #8C1D18; font-weight: 600; }

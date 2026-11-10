@@ -138,7 +138,25 @@ function addFiles(fileList){
   }
 })();
 
-function resetCheck(){ if (window.turnstile) { try { window.turnstile.reset(); } catch (e) { /* ignore */ } } }
+function resetCheck(){ setCheckStatus('', ''); if (window.turnstile) { try { window.turnstile.reset(); } catch (e) { /* ignore */ } } }
+
+// Our own line under the Cloudflare box, so people can see the security check has passed
+function setCheckStatus(state, text){
+  var el = document.getElementById('tsStatus');
+  if (!el) return;
+  el.className = 'ts-status' + (state ? ' is-' + state : '');
+  el.textContent = text;
+}
+function turnstileOk(){ setCheckStatus('ok', 'Security check passed. You can send your request.'); }
+function turnstileExpired(){ setCheckStatus('warn', 'The security check timed out. Please tick the box again.'); }
+function turnstileError(){ setCheckStatus('warn', 'The security check didn’t load. Refresh the page, or email john.hume@jnrengineeringltd.co.uk or phone 0141 647 5913.'); }
+
+// The Cloudflare box is 300px wide. On narrow phones there isn't room, so use its compact size instead.
+// Runs before Cloudflare's script, which loads after this file.
+(function(){
+  var box = document.querySelector('.cf-turnstile');
+  if (box && !box.getAttribute('data-size') && box.getBoundingClientRect().width < 300) box.setAttribute('data-size', 'compact');
+})();
 
 async function submitForm() {
   var form = document.getElementById('formContent');
@@ -168,6 +186,12 @@ async function submitForm() {
   if (fileMsg) { var drop = document.getElementById('drawing'); if (drop) drop.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
 
   var data = new FormData(form);
+  // Don't send until the security check has finished, the server would only turn it away
+  if (window.turnstile && !String(data.get('cf-turnstile-response') || '')) {
+    setCheckStatus('warn', 'Please wait for the security check to finish, or tick the box, then send it again.');
+    var ts = document.querySelector('.cf-turnstile'); if (ts && ts.scrollIntoView) ts.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    return;
+  }
   data.delete('drawings');
   chosenFiles.forEach(function(f){ data.append('drawings', f, f.name); });
   var urgentEl = document.getElementById('q-urgent');
