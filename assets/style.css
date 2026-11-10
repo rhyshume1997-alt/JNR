@@ -1727,3 +1727,7 @@ nav .nav-tel:focus-visible { outline: 2px solid var(--blue-soft); outline-offset
 .ts-status.is-ok { color: #1E6B3A; font-weight: 600; }
 .ts-status.is-ok::before { content: '\2713'; display: inline-block; margin-right: 6px; }
 .ts-status.is-warn { color: #8C1D18; font-weight: 600; }
+
+/* Thank you page: the ring had no tick inside it */
+.thanks-card .ok-ring { position: relative; }
+.thanks-card .ok-ring::after { content: ''; position: absolute; left: 50%; top: 46%; width: 20px; height: 38px; border: solid var(--blue); border-width: 0 5px 5px 0; transform: translate(-50%, -50%) rotate(45deg); }
