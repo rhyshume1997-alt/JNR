@@ -12,6 +12,10 @@
 */
 
 const Busboy = require('busboy');
+const antispam = require('./_lib/antispam');
+const TURNSTILE_HOSTNAMES = process.env.TURNSTILE_HOSTNAMES
+  ? process.env.TURNSTILE_HOSTNAMES.split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean)
+  : ['jnrengineering.co.uk', 'www.jnrengineering.co.uk'];
 
 const MAX_FILES = 4;
 const MAX_TOTAL_BYTES = 4 * 1024 * 1024; // 4MB of drawings in total (Vercel functions accept about 4.5MB per request)
@@ -271,6 +275,22 @@ module.exports = async function handler(req, res) {
     return send(req, res, 200, { ok: true }, '/thanks'); // looks like success, nothing is sent
   }
 
+  // Turnstile: mandatory server side check. A missing or bad token never reaches the email step.
+  const human = await antispam.verifyTurnstile({
+    token: fields['cf-turnstile-response'],
+    secret: process.env.TURNSTILE_SECRET_KEY,
+    ip: ip,
+    expectedAction: 'quote',
+    allowedHostnames: TURNSTILE_HOSTNAMES
+  });
+  if (!human.ok) {
+    console.warn('quote: turnstile refused', human.reason, human.codes || '');
+    if (human.reason === 'unavailable' || human.reason === 'not_configured') {
+      return send(req, res, 503, { ok: false, error: 'The form isn’t working right now.' }, '/quote?sent=error');
+    }
+    return send(req, res, 400, { ok: false, errors: { captcha: 'check failed' }, error: 'Please let the security check finish and send it again.' }, '/quote?sent=error');
+  }
+
   const checked = validate(fields, parsed.files);
   if (Object.keys(checked.errors).length) {
     return send(req, res, 400, { ok: false, errors: checked.errors, error: 'Some details need another look.' }, '/quote?sent=error');
@@ -283,6 +303,33 @@ module.exports = async function handler(req, res) {
   }
   const from = '"J.N.R. Engineering Quotes" <' + (process.env.QUOTE_FROM || DEFAULT_FROM) + '>';
   const d = checked.data;
+
+  // Suspicious enquiries (SEO and marketing pitches) are held for review, never deleted, and get no confirmation email
+  const verdict = antispam.classify({
+    name: d.name, company: d.company, email: d.email, message: d.message,
+    service: d.service, quantity: d.quantity, material: d.material, fileCount: checked.files.length
+  });
+  if (verdict.quarantine) {
+    const target = antispam.quarantineTarget(process.env, to);
+    try {
+      const owner = ownerEmail(d, checked.files);
+      const note = antispam.quarantineNote(verdict, target.separate);
+      await resendSend({
+        from: from,
+        to: target.to,
+        reply_to: d.email,
+        subject: antispam.quarantineSubject((d.urgent ? 'URGENT: ' : '') + 'New quote request – ' + d.company, verdict),
+        text: note + owner.text,
+        html: '<p style="font-family:Arial,sans-serif;background:#fff3cd;padding:10px">' + escapeHtml(note) + '</p>' + owner.html,
+        attachments: checked.files.map(function (f) { return { filename: f.filename, content: f.data.toString('base64') }; })
+      });
+    } catch (err) {
+      console.error('quote: quarantine email failed', err && err.message);
+      return send(req, res, 502, { ok: false, error: 'Your request didn’t send.' }, '/quote?sent=error');
+    }
+    console.warn('quote: quarantined', verdict.score, verdict.reasons.join('; '));
+    return send(req, res, 200, { ok: true }, '/thanks'); // the sender sees the normal thank you page
+  }
 
   try {
     const owner = ownerEmail(d, checked.files);
