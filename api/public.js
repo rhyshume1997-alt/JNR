@@ -17,6 +17,10 @@ async function liveEntries(limit) {
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { error: 'method_not_allowed' }, { Allow: 'GET, HEAD' });
   const url = new URL(req.url, 'http://x');
+  if (url.searchParams.get('__debug') === '1') { // TEMPORARY diagnostic, removed in the next commit
+    const h = {}; ['x-matched-path', 'x-vercel-id', 'x-now-route-matches', 'x-forwarded-host'].forEach((k) => { h[k] = req.headers[k] || null; });
+    return send(res, 200, { url: req.url, originalUrl: req.originalUrl || null, query: req.query || null, headers: h });
+  }
   let view = url.searchParams.get('view');
   let slug = url.searchParams.get('slug');
   if (!view) {
