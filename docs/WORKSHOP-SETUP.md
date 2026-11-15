@@ -45,10 +45,16 @@ States: `draft`, `pending_approval`, `approved`, `rejected`, `published`, `faile
 8. **Go-live for JNR** (only with your approval): connect JNR's LinkedIn page in Buffer, set Production variables and `BUFFER_CHANNEL_ID_LINKEDIN`, set `BUFFER_ENV=production`, run `npm run redirect:activate`, merge.
 
 ## Tests
-- `npm test`: 126 tests (unit, security review, end-to-end flow with real Postgres and local fakes for storage and Buffer). Database tests need `TEST_DATABASE_URL=postgres://user@localhost:5432/postgres` (a throw-away database is created and dropped per file) and are skipped without it.
+- `npm test`: 130 tests (unit, security review, end-to-end flow with real Postgres and local fakes for storage and Buffer). Database tests need `TEST_DATABASE_URL=postgres://user@localhost:5432/postgres` (a throw-away database is created and dropped per file) and are skipped without it.
 - `npm run test:browser`: 12 Chromium tests (phone form, interrupted uploads, lost replies, session expiry, permissions, failed Buffer step and recovery, public pages and leak checks, CSP). Needs Playwright.
 - `node testlib/demo.js`: the whole site locally with fakes, to look at in a browser.
 - The fake storage re-checks every upload signature independently; the signer matches the worked example in AWS's Signature V4 documentation.
+
+## Vercel preview verification (2026-11-15, branch previews, no database configured yet)
+- Pushing a branch **does** create a Vercel preview automatically (the `jnr` project is Git-connected; earlier branches did too). Previews live on `*.vercel.app`, and the project's Vercel Authentication covers all addresses except custom domains (`all_except_custom_domains`), so the previews with the admin system need a Vercel login. Your account has two-factor sign-in on.
+- The deployments built successfully. `/our-work`, `/api/feed` and `/sitemap-work.xml` are served by the new function through the rewrites, and degrade correctly with the database unconfigured: friendly 503 page, JSON, and empty XML, all `no-store`, no internals. `/workshop` serves with the security headers (CSP restricting uploads to R2, `X-Frame-Options: DENY`, `noindex`, `no-store`). `/api/admin/*` answers 401 from the function without a session (so `pg` and `sharp` load on Vercel).
+- Found and fixed on the preview: with no database, the feed and sitemap returned the Our Work HTML page (error handler ignored the requested format).
+- Not testable until you complete steps 1 to 4: anything that needs the database, R2 or Buffer on Vercel.
 
 ## Buffer verification record
 Checked on 2026-11-15 against https://developers.buffer.com/reference.html, the create-draft example and the error-handling, rate-limit and hosting-media guides:
