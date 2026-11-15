@@ -32,47 +32,75 @@ Checked in the Vercel dashboard by Rhys: the team that owns the `jnr` project ("
 **Public image address.** For staging the public bucket uses R2's own address (`https://pub-....r2.dev`). That is fine for the tests, but Cloudflare rate-limits it and says it is not for production. R2 custom domains only work for a domain whose DNS is on Cloudflare, and `jnrengineering.co.uk` uses Namecheap DNS, so `media.jnrengineering.co.uk` is **not** available without moving DNS. Decide before go-live (not needed now): (a) a small separate domain on Cloudflare for media, (b) serve images through the JNR site at `/media/...` with a Vercel rewrite to the public bucket, which keeps a permanent address on the JNR domain, or (c) move JNR's DNS to Cloudflare. Buffer needs the URLs to be public, direct, https and permanent.
 
 ## Setup: exact steps, in order (about 30 minutes)
-Everything is staging only. Nothing here touches the live JNR site, production variables or `main`.
+Everything here is **staging**. Nothing touches the live JNR site, production variables, the `main` branch or any production data.
+Steps marked **[Rhys's account]** can only be done by Rhys: they need his Neon (via Vercel), Cloudflare, Buffer or Vercel login, or create a secret only he should hold. Everything else is copy-and-run.
 
-**On your computer (once)**
-1. `git clone https://github.com/rhyshume1997-alt/JNR && cd JNR && git checkout feature/workshop-content && npm ci` (Node 22 or newer).
-2. `cp .env.staging.example .env.staging`. You will fill it in as you go. It is git-ignored; never commit it.
+**On the computer (once)**
+1. `git clone https://github.com/rhyshume1997-alt/JNR && cd JNR && git checkout feature/workshop-content && npm ci` (Node 22 or newer). *No account needed.*
+2. `cp .env.staging.example .env.staging` and fill it in as you go. It is git-ignored; never commit it. It already contains `DEPLOY_ENV=staging` and the bucket names `jnr-staging-private` / `jnr-staging-public`. *No account needed.*
 
 **Postgres: Neon via Vercel (Preview only)**
-3. Vercel > project `jnr` > **Storage** > **Create Database** > **Neon**. Plan: **Free**. Region: Europe (London) if offered. Environments: tick **Preview only** (untick Production and Development). If you see a setting to create a database branch for each preview deployment, turn it **off**: staging should use one shared database. Connect it.
-4. Neon dashboard > your database > **Connect** > copy the **pooled** connection string into `DATABASE_URL` in `.env.staging`.
-5. `npm run migrate:staging` (creates the tables, with row level security on).
-6. `CREATE_USER_PASSWORD='a long passphrase' npm run admin:create -- admin you@example.com "Your Name"`.
+3. **[Rhys's account: Vercel]** Vercel > project `jnr` > **Storage** > **Create Database** > **Neon**. Plan **Free**. Region Europe (London) if offered. Environments: **Preview only** (untick Production and Development). If there is a setting to create a database branch for each preview deployment, turn it **off**. Connect it.
+4. **[Rhys's account: Neon]** Neon dashboard > your database > **Connect** > copy the **pooled** connection string into `DATABASE_URL` in `.env.staging`.
+5. `npm run migrate:staging`. *Runs on your computer against the Neon database from step 4.*
+6. `CREATE_USER_PASSWORD='a long passphrase' npm run admin:create -- admin you@example.com "Your Name"`. *The passphrase is yours to choose.*
 
 **Cloudflare R2**
-7. Cloudflare dashboard > **R2** > enable (free plan, card required). Note the **Account ID** (R2 overview page). Set `S3_ENDPOINT=https://<account id>.r2.cloudflarestorage.com` in `.env.staging` (no bucket name on the end).
-8. Create two buckets: `jnr-private` and `jnr-public` (location: Western Europe). Put the names in `S3_BUCKET_PRIVATE` and `S3_BUCKET_PUBLIC`.
-9. `jnr-public` > Settings > **Public Development URL** > enable. Copy the `https://pub-....r2.dev` address into `PUBLIC_MEDIA_BASE_URL` (no trailing slash). Leave `jnr-private` with public access **off**.
-10. `jnr-private` > Settings > **CORS Policy** > Edit > paste the contents of `docs/r2-cors.json` (allows only `PUT` with `content-type`, only from the preview address).
-11. R2 > **Manage API tokens** > Create API token > permission **Object Read & Write**, restricted to those two buckets. Copy the **Access Key ID** and **Secret Access Key** into `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY`. (The secret is shown once.)
+7. **[Rhys's account: Cloudflare]** R2 > enable (free plan; a card is required). Copy the **Account ID** and set `S3_ENDPOINT=https://<account id>.r2.cloudflarestorage.com` (no bucket name on the end).
+8. **[Rhys's account: Cloudflare]** Create two buckets named exactly `jnr-staging-private` and `jnr-staging-public` (location Western Europe). The scripts refuse any bucket name without "staging".
+9. **[Rhys's account: Cloudflare]** `jnr-staging-public` > Settings > **Public Development URL** > enable. Copy the `https://pub-....r2.dev` address into `PUBLIC_MEDIA_BASE_URL` (no trailing slash). Leave `jnr-staging-private` non-public.
+10. **[Rhys's account: Cloudflare]** `jnr-staging-private` > Settings > **CORS Policy** > paste `docs/r2-cors.json`. (Allows only `PUT` with `content-type`, only from the preview address.)
+11. **[Rhys's account: Cloudflare, secret]** R2 > Manage API tokens > Create > **Object Read & Write**, restricted to those two buckets. Copy the Access Key ID and Secret Access Key (shown once) into `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY`.
 
 **Buffer**
-12. Open the Buffer API key page (publish.buffer.com/settings/api), create or copy a key, and put it in `BUFFER_API_TOKEN`. `BUFFER_STAGING_CHANNEL_ID` is already filled in: it is your personal LinkedIn profile. Open item: the key saved in the earlier session was rejected as "not valid". Step 14 will say clearly whether this key works.
+12. **[Rhys's account: Buffer, secret]** Create or copy a key at publish.buffer.com/settings/api into `BUFFER_API_TOKEN`. `BUFFER_STAGING_CHANNEL_ID` is already filled in (your personal LinkedIn profile). **Open item:** the key saved in the earlier session was rejected. You do not need it fixed to test the database and storage: see the next section.
 
 **Vercel Preview variables (so the protected preview can use R2 and Buffer)**
-13. Vercel > project `jnr` > **Settings** > **Environment Variables** > add these with **only Preview ticked**, marking the secret ones **Sensitive**: `S3_ENDPOINT`, `S3_REGION` (`auto`), `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET_PRIVATE`, `S3_BUCKET_PUBLIC`, `PUBLIC_MEDIA_BASE_URL`, `BUFFER_API_TOKEN`, `BUFFER_ENV` (`staging`), `BUFFER_STAGING_CHANNEL_ID`, `SITE_URL`. (`DATABASE_URL` is already there from step 3.) Then push any change to the branch, or **Redeploy** the latest preview, so it picks them up.
+13. **[Rhys's account: Vercel, secrets]** Project `jnr` > Settings > Environment Variables > add these, **Preview only**, secrets marked **Sensitive**: `S3_ENDPOINT`, `S3_REGION` (`auto`), `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET_PRIVATE`, `S3_BUCKET_PUBLIC`, `PUBLIC_MEDIA_BASE_URL`, `BUFFER_API_TOKEN` (only once it works), `BUFFER_ENV` (`staging`), `BUFFER_STAGING_CHANNEL_ID`, `SITE_URL`. (`DATABASE_URL` is already there from step 3.) Then **Redeploy** the latest preview. Do **not** add `DEPLOY_ENV`; that is only for the scripts.
 
-**Run the checks (in this order)**
-14. `npm run staging:check`: read-only. Every line should say PASS. A FAIL line says exactly what to fix.
-15. `npm run staging:e2e`: the whole flow with the website only (no Buffer): users, phone-style upload to R2, caption, approval, publish, public-image and leak checks, then cleans up.
-16. `npm run staging:e2e -- --confirm-draft`: the same plus **one draft** on your personal LinkedIn via Buffer, read back, with both images checked. Delete that draft in Buffer afterwards (its id is printed).
-17. Phone test on the protected preview (sign in to Vercel first): `https://jnr-git-feature-workshop-content-rhsys-projects.vercel.app/workshop`. Record a job with 2 to 3 photos. In `/admin`: tick the photos, tick LinkedIn, Generate caption, Approve, Publish. Check Buffer for one draft with the images, and `/our-work` on the preview for only the approved entry.
+### Run the checks (each is independent: a rejected Buffer key blocks only the Buffer steps)
+| # | Command | Needs | What it does |
+|---|---|---|---|
+| 14 | `npm run staging:check:services` | steps 1 to 11 | **Postgres and R2 only**, no Buffer key needed. |
+| 14a | `npm run staging:check -- --only=db` or `--only=storage` | as above | Just one of them. |
+| 15 | `npm run staging:e2e` | step 14 all PASS | Whole flow on your computer, website only, no Buffer. |
+| 16 | `npm run staging:check` | steps 1 to 12 | Everything including Buffer (key, staging channel, schema). |
+| 17 | `npm run staging:e2e -- --confirm-draft` | step 16 all PASS | The same plus one Buffer draft, read back, then **deleted**. |
 
-### Go / no-go for the real-service tests
+Each script starts by printing exactly what it will touch (database host, bucket names, public address host, Buffer mode and channel, whether a key is present, never a secret) and ends with PASS/FAIL per line.
+
+**What `staging:check` writes and deletes in R2 (temporary).** It writes tiny synthetic JPEGs only under the key prefix `staging-check/`: three in the private bucket (a round-trip object and two signed-upload tests) and one in the public bucket, reads them back, then deletes every one, including when a check fails part way. The last line reports "4 written and 4 deleted again". If the script is ever killed, anything left under `staging-check/` is safe to delete by hand. It never touches any other key, creates nothing in Buffer, and never contacts Vercel.
+
+**What `staging:e2e` creates and removes.** Three throw-away users (`...@staging-e2e.invalid`), one test entry, two synthetic photographs (with fake GPS and camera data, to prove they are stripped), and, with `--confirm-draft`, one Buffer draft. Cleanup order: (1) the draft is deleted from Buffer and confirmed gone; (2) only then are the photos deleted; (3) the entry and users are deleted. The Buffer delete only targets the one draft this run created, and only if it is still an unscheduled draft on the staging channel containing this run's unique marker (`Staging test e2e...`). If the draft cannot be deleted, or a lost reply left its id unknown, the **public photos are kept** (so the draft never points at deleted images) and the script prints exact steps: delete the draft in Buffer, then delete the folder `public/<entry id>/` in the staging public bucket.
+
+### Test the protected preview (separate from the scripts)
+`staging:e2e` runs this repository's code **on your computer**. It does **not** test the deployed Vercel preview. The preview is tested separately, by hand, because it is behind Vercel Authentication and because it proves things the scripts cannot: that the Preview variables really reached the deployed functions, that the serverless functions can reach Neon and R2, and that browsers can upload to R2 from the preview address (the CORS rule).
+18. **[Rhys's account: Vercel login]** On a phone, signed in to Vercel, open `https://jnr-git-feature-workshop-content-rhsys-projects.vercel.app/workshop`. Expect the amber **Test mode** notice (it appears because the public address is an r2.dev address).
+19. Sign in as the admin from step 6. Record a job with **2 to 3 synthetic photographs only** (a plain wall, a table, a scrap offcut: no customer parts, drawings, screens or paperwork). Submit it.
+20. In `/admin` on the preview: open the entry, tick each photo, tick LinkedIn, **Generate caption**, **Approve**, **Publish**. Expect "Published. LinkedIn: draft saved and verified" (only once the Buffer key works).
+21. Pass criteria: the entry is `published`; **one** draft exists in Buffer with both images in the order you set; `/our-work` on the preview shows only that entry, with no customer, job reference or notes; opening the original photo's R2 address anonymously fails. Then delete the Buffer draft yourself, and the test entry's photos from the staging public bucket (folder `public/<entry id>/`).
+
+### Test photographs and public media
+While `PUBLIC_MEDIA_BASE_URL` is an `r2.dev` address, use **synthetic or non-sensitive photographs only**. Anything that is approved is copied to that bucket and is readable by anyone with the link; Cloudflare rate-limits the address and says it is not for production. The scripts use only generated images. **Production media hosting is a separate decision, not made here** (options above: a media domain on Cloudflare, serving through the JNR site at `/media/...`, or moving JNR's DNS). Do not put real customer photographs through staging.
+
+### Staging never touches production
+- The scripts refuse to run unless `DEPLOY_ENV` and `BUFFER_ENV` are `staging`, both bucket names contain "staging", the database address does not contain prod/production/live, `VERCEL_ENV`/`NODE_ENV` are not production, and AI captions are off. (Tested: `test/staging-safety.test.js`.)
+- They never call Vercel: no project, deployment, environment-variable or domain is read or changed. A test fails if a script ever references Vercel's API or CLI.
+- Every delete is on a fixed allow-list of rows the run created itself (its own test users and entry, abandoned uploads for `cleanup:orphans`), and a test fails if any other delete, drop or truncate is added.
+- Staging Buffer use is limited to `BUFFER_STAGING_CHANNEL_ID` and to drafts. Neon and R2 are separate staging resources; production gets its own later.
+- A variable exported in your shell overrides `.env.staging`, so if you have production values exported, open a fresh terminal. The banner shows the targets before anything runs, and the guard refuses a non-staging bucket or database name.
+
+### Go / no-go
 | Run | Go when | If not |
 |---|---|---|
-| `staging:check` | Steps 1 to 13 are done. It is read-only (it writes two tiny files to R2 and deletes them) and creates nothing in Buffer. | A missing item is reported as a FAIL, nothing else happens. |
-| `staging:e2e` (no flag) | `staging:check` shows PASS for Postgres, row level security, private bucket is private, signed upload, CORS and public image URL. | Fix the FAIL it names first. |
-| `staging:e2e -- --confirm-draft` | The check also shows PASS for **Buffer API key** and **staging channel** (this is the open key item). | Do not run it. Re-create the Buffer key and repeat step 12. |
-Both scripts refuse to run unless `BUFFER_ENV=staging`, refuse if AI captions are on, only ever use the one staging channel, and can only create drafts.
+| `staging:check:services` (Postgres + R2) | Steps 1 to 11 done | A missing or wrong item is a FAIL line; nothing else happens |
+| `staging:e2e` (website only) | Step 14 all PASS | Fix the FAIL first |
+| `staging:check` (all, with Buffer) | Steps 1 to 12 done | Buffer lines FAIL; the Postgres and R2 lines are unaffected |
+| `staging:e2e -- --confirm-draft` | Step 16 shows PASS for **Buffer API key** and **staging channel** | Do not run: fix the key (step 12) first |
+| Preview test (steps 18 to 21) | Steps 3 to 13 done, redeployed | Do the scripts first |
 
 ## Tests
-- `npm test`: 136 tests (unit, security review, end-to-end flow with real Postgres and local fakes for storage and Buffer). Database tests need `TEST_DATABASE_URL=postgres://user@localhost:5432/postgres` (a throw-away database is created and dropped per file) and are skipped without it.
+- `npm test`: see the count at the end of a run; all pass (unit, security review, end-to-end flow with real Postgres and local fakes for storage and Buffer). Database tests need `TEST_DATABASE_URL=postgres://user@localhost:5432/postgres` (a throw-away database is created and dropped per file) and are skipped without it.
 - `npm run staging:selftest`: runs both staging scripts against local fakes (used to prove the scripts themselves work).
 - `npm run test:browser`: 12 Chromium tests (phone form, interrupted uploads, lost replies, session expiry, permissions, failed Buffer step and recovery, public pages and leak checks, CSP). Needs Playwright.
 - `node testlib/demo.js`: the whole site locally with fakes, to look at in a browser.
@@ -82,7 +110,7 @@ Both scripts refuse to run unless `BUFFER_ENV=staging`, refuse if AI captions ar
 - Pushing a branch **does** create a Vercel preview automatically (the `jnr` project is Git-connected; earlier branches did too). Previews live on `*.vercel.app`, and the project's Vercel Authentication covers all addresses except custom domains (`all_except_custom_domains`), so the previews with the admin system need a Vercel login. The Vercel account has two-factor sign-in on.
 - The deployments built successfully. `/our-work`, `/api/feed` and `/sitemap-work.xml` are served by the new function through the rewrites, and degrade correctly with the database unconfigured: friendly 503 page, JSON, and empty XML, all `no-store`, no internals. `/workshop` serves with the security headers (CSP restricting uploads to R2, `X-Frame-Options: DENY`, `noindex`, `no-store`). `/api/admin/*` answers 401 from the function without a session (so `pg` and `sharp` load on Vercel).
 - Found and fixed on the preview: with no database, the feed and sitemap returned the Our Work HTML page (error handler ignored the requested format).
-- Not testable until you complete steps 1 to 4: anything that needs the database, R2 or Buffer on Vercel.
+- Not testable until you complete the setup steps 3 to 13: anything that needs the database, R2 or Buffer on Vercel.
 
 ## Buffer verification record
 Checked on 2026-11-15 against https://developers.buffer.com/reference.html, the create-draft example and the error-handling, rate-limit and hosting-media guides:
@@ -90,4 +118,4 @@ Checked on 2026-11-15 against https://developers.buffer.com/reference.html, the 
 - Read-back uses `post(input: PostInput!)` and `Post.assets` (the `Asset` interface: `type`, `mimeType`, `source`, `thumbnail`). Confirmed in the reference and by live introspection (`npm run buffer:check` passed against api.buffer.com).
 - Buffer always answers HTTP 200 with coded errors; rate limits and server errors are handled by code (and the live API was seen answering `UNAUTHENTICATED` with HTTP 401 for a bad key; both are handled).
 - Image URLs must be public, direct, https and permanent, and Buffer fetches them when the draft is created: the public copies are immutable and permanent.
-- **Not yet done:** the authenticated calls (create a real draft, read it back) from this build environment: the saved API key was rejected as "not valid", so the live draft test is run by Rhys in steps 12 to 16. This stays an open item until `staging:check` shows PASS for the Buffer API key. The earlier manual draft with an image through the Buffer connector did save and read back correctly.
+- **Not yet done:** the authenticated calls (create a real draft, read it back) from this build environment: the saved API key was rejected as "not valid", so the live draft test is run by Rhys in steps 12, 16 and 17. This stays an open item until `staging:check` shows PASS for the Buffer API key. The earlier manual draft with an image through the Buffer connector did save and read back correctly.

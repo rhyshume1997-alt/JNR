@@ -5,11 +5,13 @@
 
 const HEX24 = /^[a-f0-9]{24}$/i;
 
-function lint(env) {
+function lint(env, opts) {
+  const skipBuffer = !!(opts && opts.skipBuffer);
   const problems = []; const warnings = [];
   const get = (k) => String(env[k] === undefined ? '' : env[k]).trim();
   const need = (k) => { if (!get(k)) { problems.push(k + ' is not set.'); return false; } if (/^(xxx+|changeme|todo|your[-_ ]|<.*>|\.\.\.)/i.test(get(k))) { problems.push(k + ' still looks like a placeholder.'); return false; } return true; };
 
+  if (get('DEPLOY_ENV') !== 'staging') problems.push('DEPLOY_ENV must be "staging" in .env.staging.');
   if (need('DATABASE_URL')) {
     const u = get('DATABASE_URL');
     if (!/^postgres(ql)?:\/\//.test(u)) problems.push('DATABASE_URL must start with postgres:// or postgresql://.');
@@ -24,6 +26,7 @@ function lint(env) {
     if (/\.r2\.cloudflarestorage\.com\/[^/]+/.test(e)) problems.push('S3_ENDPOINT must not include a bucket name.');
   }
   ['S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY', 'S3_BUCKET_PRIVATE', 'S3_BUCKET_PUBLIC'].forEach(need);
+  ['S3_BUCKET_PRIVATE', 'S3_BUCKET_PUBLIC'].forEach((k) => { if (get(k) && !/staging/i.test(get(k))) problems.push(k + ' must contain "staging" (use jnr-staging-private / jnr-staging-public) so staging can never touch a production bucket.'); });
   if (get('S3_BUCKET_PRIVATE') && get('S3_BUCKET_PRIVATE') === get('S3_BUCKET_PUBLIC')) problems.push('S3_BUCKET_PRIVATE and S3_BUCKET_PUBLIC must be two different buckets.');
   if (get('S3_ACCESS_KEY_ID') && !/^[a-f0-9]{32}$/i.test(get('S3_ACCESS_KEY_ID'))) warnings.push('S3_ACCESS_KEY_ID is not 32 hex characters, which is what R2 gives. Check you copied the Access Key ID, not the token value.');
   if (get('S3_SECRET_ACCESS_KEY') && !/^[a-f0-9]{64}$/i.test(get('S3_SECRET_ACCESS_KEY'))) warnings.push('S3_SECRET_ACCESS_KEY is not 64 hex characters, which is what R2 gives for an S3 token.');
@@ -31,9 +34,10 @@ function lint(env) {
     const m = get('PUBLIC_MEDIA_BASE_URL');
     if (!/^https:\/\//.test(m)) problems.push('PUBLIC_MEDIA_BASE_URL must be https (Buffer fetches the images from it).');
     if (/\/$/.test(m)) problems.push('PUBLIC_MEDIA_BASE_URL must not end with a slash.');
-    if (/\.r2\.dev/.test(m)) warnings.push('PUBLIC_MEDIA_BASE_URL is an r2.dev address: fine for staging, but Cloudflare rate-limits it and says it is not for production.');
+    if (/\.r2\.dev/.test(m)) warnings.push('PUBLIC_MEDIA_BASE_URL is an r2.dev address: use it for testing with synthetic or non-sensitive photographs only. Anything copied to it is publicly readable by anyone with the link, Cloudflare rate-limits it, and it is not a production address.');
     if (/r2\.cloudflarestorage\.com/.test(m)) problems.push('PUBLIC_MEDIA_BASE_URL must be the PUBLIC address of the public bucket, not the private S3 endpoint.');
   }
+  if (skipBuffer) return { problems, warnings };
   if (need('BUFFER_API_TOKEN') && get('BUFFER_API_TOKEN').length < 20) warnings.push('BUFFER_API_TOKEN looks too short to be a Buffer key.');
   if (get('BUFFER_ENV') !== 'staging') problems.push('BUFFER_ENV must be "staging" for these tests.');
   if (!HEX24.test(get('BUFFER_STAGING_CHANNEL_ID'))) problems.push('BUFFER_STAGING_CHANNEL_ID must be the 24-character channel id.');

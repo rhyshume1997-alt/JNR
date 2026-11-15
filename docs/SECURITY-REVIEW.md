@@ -52,6 +52,9 @@ Reviewed 2026-11-15 on branch `feature/workshop-content`. Scope: authentication,
 ## Buffer cannot publish or schedule
 `assertDraftOnly` runs before every request and refuses `saveToDraft: false`, any `dueAt`, and any `mode` other than `addToQueue` (`buffer.guard.test.js`). Staging can only target `BUFFER_STAGING_CHANNEL_ID`; production refuses to run without `BUFFER_CHANNEL_ID_LINKEDIN`. Buffer's own documentation says drafts are not published "until explicitly scheduled" and skip posting-limit checks.
 
+## Staging scripts
+Refuse to run unless explicitly staging (`DEPLOY_ENV`, `BUFFER_ENV`, bucket names containing "staging", no prod-looking database address, no production `VERCEL_ENV`), never call Vercel, only delete rows and objects they created themselves, and use synthetic photographs only. The Buffer test draft is deleted (and confirmed gone) before its images, and only if it is an unscheduled draft on the staging channel carrying the run's unique marker. All pinned by `test/staging-safety.test.js`.
+
 ## Findings fixed during this review
 1. No per-address sign-in throttle -> added.
 2. Password hashing cost below current guidance -> raised.

@@ -99,6 +99,18 @@ describe('workshop content system (database)', { skip: SKIP }, () => {
     });
   });
 
+  describe('test-mode notice', () => {
+    it('tells the apps when the public photo address is the R2 development URL, and only then', async () => {
+      const real = process.env.PUBLIC_MEDIA_BASE_URL;
+      assert.strictEqual((await work.get('/auth/me')).data.features.public_media_is_dev, false);
+      process.env.PUBLIC_MEDIA_BASE_URL = 'https://pub-0a1b2c3d4e5f.r2.dev';
+      assert.strictEqual((await work.get('/auth/me')).data.features.public_media_is_dev, true);
+      process.env.PUBLIC_MEDIA_BASE_URL = 'https://media.example.test';
+      assert.strictEqual((await work.get('/auth/me')).data.features.public_media_is_dev, false);
+      process.env.PUBLIC_MEDIA_BASE_URL = real;
+    });
+  });
+
   describe('creating entries', () => {
     it('validates fields and explains each error', async () => {
       const r = await work.post('/entries', { kind: 'nonsense', title: 'x', summary: '' });

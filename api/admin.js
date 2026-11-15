@@ -32,7 +32,7 @@ route('POST', '/auth/login', null, async (ctx) => {
 });
 route('POST', '/auth/logout', null, async (ctx) => { await auth.logout(ctx.req); return { status: 200, headers: { 'Set-Cookie': auth.clearCookie() }, body: { ok: true } }; });
 route('GET', '/auth/me', 'workshop', async (ctx) => ({ body: { user: ctx.user, stages: M.STAGES.map((s) => ({ id: s, label: M.STAGE_LABELS[s] })), kinds: M.KINDS.map((k) => ({ id: k, label: M.KIND_LABELS[k] })),
-  limits: { maxBytes: getConfig().upload.maxBytes, maxPerEntry: getConfig().upload.maxPerEntry }, features: { ai_captions: getConfig().caption.aiEnabled && !!getConfig().caption.apiKey, tolra: tolra.enabled(), buffer_env: getConfig().buffer.env } } }));
+  limits: { maxBytes: getConfig().upload.maxBytes, maxPerEntry: getConfig().upload.maxPerEntry }, features: { public_media_is_dev: /\.r2\.dev(\/|$)/i.test(getConfig().storage.publicBaseUrl || ''), ai_captions: getConfig().caption.aiEnabled && !!getConfig().caption.apiKey, tolra: tolra.enabled(), buffer_env: getConfig().buffer.env } } }));
 
 // ---- entries
 route('GET', '/entries', 'workshop', async (ctx) => ({ body: { entries: await E.listEntries(ctx.user, { status: ctx.q('status'), q: ctx.q('q'), limit: ctx.q('limit'), offset: ctx.q('offset') }), counts: await E.statusCounts(ctx.user) } }));

@@ -16,6 +16,7 @@
       app.appendChild(h('p', { class: 'notice bad', text: e.message })); return;
     }
     document.getElementById('who').textContent = me.name + ' (' + me.role + ')';
+    if (meta.features && meta.features.public_media_is_dev) document.getElementById('app').insertAdjacentElement('beforebegin', h('div', { class: 'notice warn', id: 'dev-media-notice', role: 'note', text: 'Test mode: approved photos are copied to a public development address that anyone with the link can open. Use test photographs only.' }));
     var out = document.getElementById('out'); out.classList.remove('hidden');
     out.onclick = async function () { await call('POST', '/auth/logout'); location.reload(); };
     showList();

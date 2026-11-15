@@ -128,9 +128,17 @@ async function startFakeBuffer() {
       const p = storePost(input);
       return reply(200, { data: { createPost: { __typename: 'PostActionSuccess', post: p } } });
     }
+    if (/deletePost/.test(body.query)) {
+      const id = body.variables.input.id;
+      if (state.deleteMode === 'error') return reply(200, { data: { deletePost: { __typename: 'VoidMutationError', message: 'Cannot delete right now' } } });
+      if (state.deleteMode === 'noop') return reply(200, { data: { deletePost: { __typename: 'DeletePostSuccess', id } } }); // says deleted, is not
+      state.posts.delete(id); state.deletes = (state.deletes || 0) + 1;
+      return reply(200, { data: { deletePost: { __typename: 'DeletePostSuccess', id } } });
+    }
     if (/ReadPost|post\(/.test(body.query)) {
       const p = state.posts.get(body.variables.input.id);
-      return reply(200, { data: { post: p || null } });
+      if (!p) return reply(200, { data: null, errors: [{ message: 'Post not found', extensions: { code: 'NOT_FOUND' } }] });
+      return reply(200, { data: { post: p } });
     }
     if (/account\s*\{/.test(body.query)) return reply(200, { data: { account: { id: 'acct1', organizations: [{ id: 'o'.repeat(24), name: 'Fake org' }] } } });
     if (/channels\(/.test(body.query)) return reply(200, { data: { channels: [{ id: process.env.BUFFER_STAGING_CHANNEL_ID, name: 'fake-profile', service: 'linkedin', type: 'profile', isDisconnected: false, isLocked: false }] } });
@@ -198,7 +206,7 @@ function setEnv(s3, buf) {
     S3_BUCKET_PRIVATE: 'private-originals', S3_BUCKET_PUBLIC: 'public-media', PUBLIC_MEDIA_BASE_URL: 'https://media.example.test',
     BUFFER_API_URL: buf ? buf.url : 'http://127.0.0.1:9', BUFFER_API_TOKEN: 'good-token', BUFFER_ENV: 'staging',
     BUFFER_STAGING_CHANNEL_ID: 'a'.repeat(24), BUFFER_CHANNEL_ID_LINKEDIN: 'b'.repeat(24), BUFFER_RETRY_DELAYS_MS: '1,1', BUFFER_TIMEOUT_MS: '2000',
-    AI_CAPTIONS_ENABLED: '', TOLRA_ENABLED: '',
+    AI_CAPTIONS_ENABLED: '', TOLRA_ENABLED: '', DEPLOY_ENV: 'staging',
   });
 }
 

@@ -9,16 +9,16 @@ const path = require('node:path');
 const good = {
   DATABASE_URL: 'postgresql://u:p@ep-cool-123-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require',
   S3_ENDPOINT: 'https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com', S3_ACCESS_KEY_ID: 'a'.repeat(32), S3_SECRET_ACCESS_KEY: 'b'.repeat(64),
-  S3_BUCKET_PRIVATE: 'jnr-private', S3_BUCKET_PUBLIC: 'jnr-public', PUBLIC_MEDIA_BASE_URL: 'https://pub-0123abcd.r2.dev',
+  S3_BUCKET_PRIVATE: 'jnr-staging-private', S3_BUCKET_PUBLIC: 'jnr-staging-public', DEPLOY_ENV: 'staging', PUBLIC_MEDIA_BASE_URL: 'https://pub-0123abcd.r2.dev',
   BUFFER_API_TOKEN: 'k9Qm2Vz7Lp4Tn8Rw1Ys6Hd3Jf5Bc0Xe'.repeat(2), BUFFER_ENV: 'staging', BUFFER_STAGING_CHANNEL_ID: '6afa05fbece6dfde5fd74165',
 };
 
 describe('staging environment lint', () => {
   it('accepts a correct Neon + R2 + Buffer set, warning only that r2.dev is for staging', () => {
-    const r = lint(good); assert.deepStrictEqual(r.problems, []); assert.strictEqual(r.warnings.length, 1); assert.match(r.warnings[0], /r2\.dev/);
+    const r = lint(good); assert.deepStrictEqual(r.problems, []); assert.strictEqual(r.warnings.length, 1); assert.match(r.warnings[0], /r2\.dev/); assert.match(r.warnings[0], /synthetic or non-sensitive/);
   });
   it('flags every common mistake without echoing a value', () => {
-    const bad = Object.assign({}, good, { DATABASE_URL: 'mysql://x', S3_ENDPOINT: 'https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com/jnr-private', S3_BUCKET_PUBLIC: 'jnr-private',
+    const bad = Object.assign({}, good, { DATABASE_URL: 'mysql://x', S3_ENDPOINT: 'https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com/jnr-private', S3_BUCKET_PUBLIC: 'jnr-staging-private',
       PUBLIC_MEDIA_BASE_URL: 'http://pub.r2.dev/', BUFFER_ENV: 'production', BUFFER_STAGING_CHANNEL_ID: 'abc', AI_CAPTIONS_ENABLED: 'true', TOLRA_ENABLED: '1', S3_SECRET_ACCESS_KEY: 'changeme' });
     const r = lint(bad); const all = r.problems.join(' | ');
     for (const re of [/postgres/, /must not include a bucket/, /two different buckets/, /https/, /trailing slash|end with a slash/, /staging/, /24-character/, /AI_CAPTIONS/, /TOLRA/, /placeholder/]) assert.match(all, re);

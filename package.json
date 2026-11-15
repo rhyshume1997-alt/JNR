@@ -22,6 +22,7 @@
     "test:browser": "node --test e2e/browser.e2e.js",
     "migrate:staging": "node --env-file=.env.staging scripts/migrate.js",
     "admin:create": "node --env-file=.env.staging scripts/create-user.js",
-    "staging:selftest": "node scripts/staging-check.js --selftest && node scripts/staging-e2e.js --selftest"
+    "staging:selftest": "node scripts/staging-check.js --selftest && node scripts/staging-e2e.js --selftest",
+    "staging:check:services": "node --env-file=.env.staging scripts/staging-check.js --skip-buffer"
   }
 }

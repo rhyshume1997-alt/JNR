@@ -22,6 +22,9 @@
 
   function renderForm() {
     app.textContent = '';
+    if (meta.features && meta.features.public_media_is_dev) {
+      app.appendChild(h('div', { class: 'notice warn', role: 'note', id: 'dev-media-notice', text: 'Test mode: photos that get approved are copied to a public development address that anyone with the link can open. Use test photographs only, never a real customer\'s part, drawing or paperwork.' }));
+    }
     var files = []; // { file, el, bar, state, imageId }
     var entryId = null;
     var key = sessionStorage.getItem('jnr-key') || JNR.uuid();

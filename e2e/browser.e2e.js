@@ -59,6 +59,21 @@ describe('browser tests', { skip: SKIP }, () => {
     if (files && files.length) await p.setInputFiles('#photos', files);
   }
 
+  describe('test-mode notice for the r2.dev public address', () => {
+    it('warns staff on the form and the dashboard to use test photographs only, and is absent otherwise', async () => {
+      const real = process.env.PUBLIC_MEDIA_BASE_URL;
+      const c = await ctx('desktop'); const p = await page(c, 'notice');
+      await signIn(p, '/workshop', 'editor@jnr.test'); await p.waitForSelector('#title');
+      assert.strictEqual(await p.locator('#dev-media-notice').count(), 0, 'no notice for a normal media address');
+      process.env.PUBLIC_MEDIA_BASE_URL = 'https://pub-0a1b2c3d4e5f.r2.dev';
+      await p.reload(); await p.waitForSelector('#dev-media-notice');
+      assert.match(await p.locator('#dev-media-notice').innerText(), /test photographs only/i);
+      await p.goto(site.origin + '/admin', { waitUntil: 'domcontentloaded' }); await p.waitForSelector('#dev-media-notice');
+      process.env.PUBLIC_MEDIA_BASE_URL = real;
+      await c.close();
+    });
+  });
+
   describe('phone form', () => {
     it('records a job with photos on a phone-sized screen, with no sideways scrolling', async () => {
       const c = await ctx('phone'); const p = await page(c, 'phone');

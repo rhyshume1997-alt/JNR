@@ -7,12 +7,25 @@
 //     - each public image URL is fetchable by anyone, is a JPEG, and has no EXIF/GPS
 //     - private markers (customer, job reference, internal notes, original file name) appear nowhere public
 //   What it never does: schedule or publish to LinkedIn (drafts only, staging channel only), or touch real entries.
-//   Cleanup: deletes its users, entry, and storage objects. The Buffer draft is left for you to see, and to delete in Buffer.
+//   Cleanup order (so nothing is ever left pointing at deleted images): (1) the test draft is deleted from Buffer and confirmed
+//   gone, (2) only then the public and private photos, (3) the test entry and users. If the draft cannot be deleted (or its id
+//   is unknown after a lost reply), the public photos are KEPT so the draft still shows its images, and you get exact
+//   instructions to delete the draft in Buffer and then the photos. The delete only ever targets the one draft this run
+//   created, and only if it is still an unscheduled draft on the staging channel carrying this run's unique marker.
+//
+//   NOT A TEST OF THE DEPLOYED PREVIEW: this runs this repository's handlers on the computer you run it from, against the real
+//   Postgres, R2 and Buffer. The protected Vercel preview is tested separately (docs/WORKSHOP-SETUP.md, "Test the protected
+//   preview"), which also proves the variables on Vercel, serverless-to-database access and browser uploads from that address.
+//   Use synthetic photographs only: the public bucket's r2.dev address is readable by anyone with the link.
+//
+//   Never touches production: refuses unless DEPLOY_ENV/BUFFER_ENV are "staging" and the bucket names contain "staging"; never
+//   contacts Vercel; only creates and deletes rows it created itself (throw-away users on @staging-e2e.invalid and one entry).
 //
 //   BUFFER_ENV must be "staging". Pass --confirm-draft to allow creating the one test draft in Buffer; without it the run
 //   covers everything except the Buffer step. --selftest runs the whole script against local fakes.
 const crypto = require('node:crypto');
 const sharp = require('sharp');
+const { assertStagingTarget, describeTargets } = require('./lib/guard');
 
 const rows = []; let failures = 0;
 const rec = (tag, name, detail) => { if (tag === 'FAIL') failures++; rows.push({ tag, name, detail }); console.log((tag + '    ').slice(0, 5) + ' ' + name + (detail ? '  -  ' + detail : '')); };
@@ -34,7 +47,7 @@ async function run(opts) {
   const pw = crypto.randomBytes(18).toString('base64url') + 'aA1';
   const mail = (r) => r + '-' + tag + '@staging-e2e.invalid';
   const app = await H.startApp();
-  const ids = { users: [], entry: null, privateKeys: [], publicKeys: [] };
+  const ids = { users: [], entry: null, privateKeys: [], publicKeys: [], draftId: null, draftMarker: 'Staging test ' + tag, draftUnknown: false };
   try {
     for (const role of ['workshop', 'editor', 'admin']) ids.users.push((await auth.createUser({ email: 'staging-e2e' }, { email: mail(role), name: 'E2E ' + role, role, password: pw })).id);
     const work = app.client(), editor = app.client();
@@ -70,6 +83,7 @@ async function run(opts) {
       check(pub.status === 200 && pub.data.results.length === 1 && pub.data.results[0].status === 'verified', 'website publish (Buffer step skipped: pass --confirm-draft to include it)', JSON.stringify(pub.data));
     } else {
       const li = (pub.data.results || []).find((r) => r.destination === 'linkedin');
+      if (li && li.buffer_post_id) ids.draftId = li.buffer_post_id;
       check(pub.status === 200 && li && li.status === 'verified', 'Buffer draft created and verified by the server', JSON.stringify(pub.data.results));
       if (li && li.buffer_post_id) {
         const post = await B.readPost(li.buffer_post_id);
@@ -80,8 +94,9 @@ async function run(opts) {
         const urls = snap.images.map((i) => i.url);
         const assets = (post.assets || []).filter((a) => a.type === 'image' || !a.type);
         check(assets.length === 2 && assets.every((a, i) => a.source === urls[i]), 'BOTH images are attached to the draft, in order', JSON.stringify(assets.map((a) => a.source)));
-        rec('INFO', 'Buffer draft id (delete it in Buffer when done)', li.buffer_post_id);
+        ids.draftId = li.buffer_post_id;
       }
+      if (li && !li.buffer_post_id && li.status !== 'verified') ids.draftUnknown = true; // sent but the reply was lost or failed: a draft may exist
     }
 
     // What the world can see
@@ -104,8 +119,30 @@ async function run(opts) {
     check(anonPrivate.status !== 200, 'the original photo is not publicly readable', 'anonymous GET returned 200');
     check((await work.get('/entries/' + ids.entry + '/audit')).status === 403, 'workshop role cannot read the audit history');
   } finally {
-    // Cleanup of everything this run created (the Buffer draft is left on purpose).
-    try { for (const k of ids.privateKeys) await storage.del('privateBucket', k).catch(() => {}); for (const k of ids.publicKeys) await storage.del('publicBucket', k).catch(() => {}); } catch (_) { /* ignore */ }
+    // ---- Cleanup. Order matters: the draft goes first, so no Buffer draft is ever left pointing at deleted images.
+    let keepMedia = false;
+    if (ids.draftId) {
+      try {
+        await B.deleteTestDraft(ids.draftId, { marker: ids.draftMarker, channelId: cfg.buffer.stagingChannelId });
+        rec('PASS', 'test draft deleted from Buffer and confirmed gone', ids.draftId);
+      } catch (e) {
+        keepMedia = true;
+        rec('WARN', 'the test draft could NOT be deleted automatically', (e.message || String(e)).slice(0, 160));
+      }
+    } else if (ids.draftUnknown) {
+      keepMedia = true;
+      rec('WARN', 'a draft may exist in Buffer but its id is unknown (the reply was lost or the step failed)', 'search Buffer for the text "' + ids.draftMarker + '"');
+    }
+    try {
+      if (keepMedia) {
+        rec('WARN', 'public photos KEPT so the remaining draft still shows its images', 'bucket ' + cfg.storage.publicBucket + ', prefix public/' + ids.entry + '/');
+        for (const k of ids.privateKeys) await storage.del('privateBucket', k).catch(() => {});
+        console.log('\nTO FINISH CLEANING UP BY HAND:\n  1. In Buffer, delete the draft ' + (ids.draftId ? '(post id ' + ids.draftId + ') ' : 'whose text contains "' + ids.draftMarker + '" ') + 'on your personal LinkedIn channel.\n  2. Then in Cloudflare R2, bucket ' + cfg.storage.publicBucket + ', delete the folder public/' + ids.entry + '/ (the staging bucket only holds test photographs).');
+      } else {
+        for (const k of ids.privateKeys) await storage.del('privateBucket', k).catch(() => {});
+        for (const k of ids.publicKeys) await storage.del('publicBucket', k).catch(() => {});
+      }
+    } catch (_) { /* ignore */ }
     try { if (ids.entry) { await query('delete from audit_log where entry_id = $1', [ids.entry]); await query('delete from entries where id = $1', [ids.entry]); } if (ids.users.length) { await query('delete from audit_log where actor_email like $1', ['%-' + tag + '@staging-e2e.invalid']); await query('delete from users where id = any($1)', [ids.users]); } } catch (e) { console.error('cleanup problem: ' + e.message); }
     await app.close();
   }
@@ -119,9 +156,14 @@ async function main() {
     const H = require('../testlib/harness');
     const db = await H.createTestDb(); const s3 = await H.startFakeS3(); const buf = await H.startFakeBuffer(); H.setEnv(s3, buf);
     process.env.PUBLIC_MEDIA_BASE_URL = s3.endpoint + '/public-media';
+    if (process.env.SELFTEST_DELETE_FAILS) buf.state.deleteMode = 'error'; // proves the photos are kept when the draft cannot be deleted
     cleanup = async () => { await s3.close(); await buf.close(); await db.drop(); };
   }
+  if (!self) { try { assertStagingTarget(process.env); } catch (e) { console.error(e.message); process.exit(2); } }
   console.log('Staging end-to-end' + (self ? ' (self-test against local fakes)' : '') + (draft ? '' : ' (no Buffer draft)') + '\n');
+  console.log('This runs this repository\'s code on THIS computer against the real services. It does not test the deployed Vercel preview.\nIt will touch:');
+  if (!self) describeTargets(process.env).forEach((l) => console.log('  ' + l));
+  console.log('Test data: synthetic photographs only; throw-away users and one entry, all deleted at the end.\n');
   try { await run({ draft }); } catch (e) { rec('FAIL', 'run aborted', (e.message || String(e)).replace(/postgres(ql)?:\/\/[^\s]+/g, '<url>')); }
   console.log('\n' + (failures ? failures + ' step(s) FAILED.' : 'All steps passed.'));
   await require('../api/_lib/db').closePool().catch(() => {}); await cleanup();

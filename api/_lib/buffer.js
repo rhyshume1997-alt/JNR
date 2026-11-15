@@ -17,6 +17,7 @@ const ASSET_FIELDS = 'assets { __typename type mimeType source thumbnail }';
 const QUERIES = {
   createDraft: 'mutation CreateDraft($input: CreatePostInput!) { createPost(input: $input) { __typename ... on PostActionSuccess { post { id text status channelId dueAt sentAt ' + ASSET_FIELDS + ' } } ... on MutationError { message } } }',
   readPost: 'query ReadPost($input: PostInput!) { post(input: $input) { id text status channelId dueAt sentAt ' + ASSET_FIELDS + ' } }',
+  deleteDraft: 'mutation DeleteDraft($input: DeletePostInput!) { deletePost(input: $input) { __typename ... on DeletePostSuccess { id } ... on MutationError { message } } }',
   channels: 'query Channels($input: ChannelsInput!) { channels(input: $input) { id name service type isDisconnected isLocked } }',
 };
 
@@ -150,9 +151,27 @@ function verifyDraft(post, expected) {
   return { ok: problems.length === 0, problems };
 }
 
+// ONLY for the staging end-to-end test, to remove the throw-away draft it created. Deliberately narrow: it refuses unless the
+// post is still a draft, is on the expected channel, has no schedule or sent time, and its text contains the unique marker of
+// this test run. It is not used by the website, and the draft-creation path above still cannot publish or schedule.
+async function deleteTestDraft(id, expect) {
+  if (!/^[a-f0-9]{24}$/i.test(String(id || ''))) throw new BufferError('permanent', 'Not a Buffer post id.');
+  if (!expect || !expect.marker || String(expect.marker).length < 8 || !expect.channelId) throw new Error('Refusing to delete: a unique test marker and the channel are required.');
+  const post = await readPost(id);
+  if (post.status !== 'draft' || post.dueAt || post.sentAt) throw new BufferError('permanent', 'Refusing to delete: the post is not an unscheduled draft.');
+  if (post.channelId !== expect.channelId) throw new BufferError('permanent', 'Refusing to delete: the post is on a different channel.');
+  if (!String(post.text || '').includes(expect.marker)) throw new BufferError('permanent', 'Refusing to delete: the post does not carry this test run\'s marker.');
+  const data = await withRetries(() => gql(QUERIES.deleteDraft, { input: { id } }), false);
+  const r = data && data.deletePost;
+  if (!r || !r.id) throw new BufferError(r && r.message ? 'permanent' : 'ambiguous', r && r.message ? 'Buffer would not delete the draft: ' + r.message : 'Buffer did not confirm the deletion.');
+  // Confirm it is really gone (the API answers NOT_FOUND for a deleted post).
+  try { await readPost(id); } catch (e) { if (e instanceof BufferError && e.kind === 'permanent') return true; throw e; }
+  throw new BufferError('ambiguous', 'Buffer said the draft was deleted but it can still be read.');
+}
+
 async function listChannels(organizationId) {
   const data = await withRetries(() => gql(QUERIES.channels, { input: { organizationId } }), true);
   return data.channels;
 }
 
-module.exports = { fromGraphqlError, QUERIES, BufferError, draftInput, assertDraftOnly, createDraft, readPost, verifyDraft, listChannels, gql };
+module.exports = { deleteTestDraft, fromGraphqlError, QUERIES, BufferError, draftInput, assertDraftOnly, createDraft, readPost, verifyDraft, listChannels, gql };
