@@ -179,7 +179,7 @@
     if (!(d.publications || []).length) pubs.appendChild(h('p', { class: 'hint', text: 'Nothing published yet.' }));
 
     var logBox = h('div', { class: 'card' }, h('h3', { text: 'History' }));
-    call('GET', '/entries/' + id + '/audit').then(function (a) {
+    (isEditor() ? call('GET', '/entries/' + id + '/audit') : Promise.resolve({ audit: [] })).then(function (a) {
       a.audit.forEach(function (x) { logBox.appendChild(h('div', { class: 'log', text: fmt(x.at) + ' · ' + (x.actor_email || 'system') + ' · ' + x.action.replace(/_/g, ' ') + (x.detail && x.detail.fields ? ': ' + x.detail.fields.join(', ') : '') + (x.detail && x.detail.note ? ': ' + x.detail.note : '') })); });
     });
 

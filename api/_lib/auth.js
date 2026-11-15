@@ -9,10 +9,13 @@ const { hasRole, ROLES } = require('./model');
 const COOKIE = 'jnr_session';
 const MAX_FAILS = 5;
 const LOCK_MINUTES = 15;
-const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 64 };
+// OWASP-recommended scrypt cost (N=2^16, r=8, p=1). Stored with each hash, so it can be raised later without breaking logins.
+const SCRYPT = { N: 65536, r: 8, p: 1, keylen: 64 };
+const IP_FAIL_LIMIT = 20;
+const IP_FAIL_WINDOW_MIN = 10;
 
 function scryptAsync(pw, salt, opts) {
-  return new Promise((resolve, reject) => crypto.scrypt(pw, salt, opts.keylen, { N: opts.N, r: opts.r, p: opts.p }, (e, k) => (e ? reject(e) : resolve(k))));
+  return new Promise((resolve, reject) => crypto.scrypt(pw, salt, opts.keylen, { N: opts.N, r: opts.r, p: opts.p, maxmem: 256 * 1024 * 1024 }, (e, k) => (e ? reject(e) : resolve(k))));
 }
 
 async function hashPassword(password) {
@@ -60,6 +63,11 @@ async function audit(client, actor, action, entryId, detail) {
 
 async function login(email, password, ip, userAgent) {
   const e = String(email || '').trim().toLowerCase();
+  // Slow down guessing across many accounts from one address (per-account lockout alone would not stop that).
+  if (ip && ip !== 'unknown') {
+    const recent = await query("select count(*)::int as n from audit_log where action = 'login_failed' and at > now() - make_interval(mins => $2) and detail->>'ip' = $1", [ip, IP_FAIL_WINDOW_MIN]);
+    if (recent.rows[0].n >= IP_FAIL_LIMIT) throw new HttpError(429, 'too_many', 'Too many failed sign-ins from this connection. Try again in ' + IP_FAIL_WINDOW_MIN + ' minutes.');
+  }
   const generic = new HttpError(401, 'bad_login', 'Email or password is not right.');
   if (!e || typeof password !== 'string' || !password) throw generic;
   const { rows } = await query('select * from users where lower(email) = $1', [e]);
@@ -80,6 +88,7 @@ async function login(email, password, ip, userAgent) {
     throw generic;
   }
   await query('update users set failed_attempts = 0, locked_until = null where id = $1', [user.id]);
+  await query('delete from sessions where expires_at < now()');
   const token = crypto.randomBytes(32).toString('base64url');
   const hours = getConfig().sessionHours;
   await query('insert into sessions (user_id, token_hash, expires_at, user_agent) values ($1,$2,$3,$4)',

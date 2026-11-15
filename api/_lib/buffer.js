@@ -4,9 +4,11 @@
 // Hard rule enforced here, not just in the UI: this module can only create DRAFTS. It refuses any input that would
 // schedule or publish, so a bug elsewhere cannot post to LinkedIn.
 //
-// NOTE: written from Buffer's public docs and the documented createPost example. The post read-back query and the
-// asset field names could not be checked against the live schema from the build environment. Run `npm run buffer:check`
-// once with a real token; every query lives in QUERIES below so any correction is one edit.
+// Checked against Buffer's API reference (https://developers.buffer.com/reference.html), the create-draft example and the
+// error-handling and hosting-media guides on 2026-11-15: createPost(input: CreatePostInput!) with saveToDraft, schedulingType
+// and mode; post(input: PostInput!{id}); Post.assets is the Asset interface (type, mimeType, source, thumbnail); PostStatus has
+// `draft`; GraphQL always answers HTTP 200 and system errors carry extensions.code. `npm run buffer:check` re-checks the live
+// schema without changing anything. Every query lives in QUERIES below so any future change is one edit.
 
 const { getConfig } = require('./config');
 
@@ -45,19 +47,34 @@ async function gql(query, variables) {
     throw new BufferError('ambiguous', 'The connection to Buffer failed after the request was sent.');
   }
   if (res.status === 401 || res.status === 403) throw new BufferError('permanent', 'Buffer refused the API token (' + res.status + '). Check BUFFER_API_TOKEN.');
-  if (res.status === 429) {
-    const ra = Number(res.headers.get('retry-after'));
-    throw Object.assign(new BufferError('safe', 'Buffer rate limit reached.'), { retryAfterMs: Number.isFinite(ra) && ra > 0 ? Math.min(ra * 1000, 5000) : undefined });
-  }
+  if (res.status === 429) throw retryAfter(new BufferError('safe', 'Buffer rate limit reached.'), res.headers.get('retry-after'));
   if (res.status >= 500) throw new BufferError('ambiguous', 'Buffer returned an error (' + res.status + ') and may or may not have processed the request.');
   let body;
   try { body = await res.json(); } catch (_) { throw new BufferError('ambiguous', 'Buffer sent a reply that could not be read.'); }
-  if (body.errors && body.errors.length) {
-    // GraphQL validation errors mean the request was rejected before running.
-    throw new BufferError('permanent', 'Buffer rejected the request: ' + body.errors.map((x) => x.message).join('; '), body.errors);
-  }
+  // Buffer always answers HTTP 200. System errors are in `errors` with extensions.code. A reply that also carries usable data
+  // (for example a created post plus a warning) is treated as a success.
+  const hasData = body.data && Object.keys(body.data).some((k) => body.data[k] !== null && body.data[k] !== undefined);
+  if (body.errors && body.errors.length && !hasData) throw fromGraphqlError(body.errors);
   if (!res.ok) throw new BufferError('permanent', 'Buffer returned ' + res.status + '.');
   return body.data;
+}
+
+function retryAfter(err, header) {
+  const ra = Number(header);
+  if (Number.isFinite(ra) && ra > 0) err.retryAfterMs = Math.min(ra * 1000, 5000);
+  return err;
+}
+
+// Maps Buffer's documented error codes to what is safe to do next.
+function fromGraphqlError(errors) {
+  const first = errors[0] || {};
+  const code = first.extensions && first.extensions.code;
+  const msg = errors.map((x) => x.message).join('; ');
+  if (code === 'UNAUTHORIZED' || code === 'FORBIDDEN') return new BufferError('permanent', 'Buffer refused the API token (' + code + '). Check BUFFER_API_TOKEN.', errors);
+  if (code === 'NOT_FOUND') return new BufferError('permanent', 'Buffer could not find that item (NOT_FOUND).', errors);
+  if (code === 'RATE_LIMIT_EXCEEDED') return new BufferError('safe', 'Buffer rate limit reached (RATE_LIMIT_EXCEEDED).', errors); // refused, not processed
+  if (code === 'UNEXPECTED') return new BufferError('ambiguous', 'Buffer had a server error (UNEXPECTED) and may or may not have processed the request.', errors);
+  return new BufferError('permanent', 'Buffer rejected the request: ' + msg, errors); // validation and schema errors: refused before running
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -102,8 +119,11 @@ async function createDraft(input) {
   const data = await withRetries(() => gql(QUERIES.createDraft, { input }), false);
   const r = data && data.createPost;
   if (!r) throw new BufferError('ambiguous', 'Buffer did not say whether the draft was created.');
-  if (r.__typename === 'MutationError' || (!r.post && r.message)) throw new BufferError('permanent', 'Buffer would not save the draft: ' + r.message);
-  if (!r.post || !r.post.id) throw new BufferError('ambiguous', 'Buffer reply had no post id.');
+  if (!r.post || !r.post.id) {
+    // Any typed error (InvalidInputError, LimitReachedError, ...) implements MutationError and carries a message.
+    if (r.message) throw new BufferError('permanent', 'Buffer would not save the draft: ' + r.message);
+    throw new BufferError('ambiguous', 'Buffer reply had no post id.');
+  }
   return r.post;
 }
 

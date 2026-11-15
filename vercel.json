@@ -11,6 +11,7 @@
     { "source": "/our-work", "destination": "/api/public?view=index" },
     { "source": "/our-work/:slug", "destination": "/api/public?view=entry&slug=:slug" },
     { "source": "/api/feed", "destination": "/api/public?view=feed" },
+    { "source": "/sitemap-work.xml", "destination": "/api/public?view=sitemap" },
     { "source": "/api/admin/:path*", "destination": "/api/admin?path=:path*" }
   ],
   "headers": [

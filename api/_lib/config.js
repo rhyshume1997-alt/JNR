@@ -19,7 +19,8 @@ function getConfig() {
   return {
     databaseUrl: env('DATABASE_URL'),
     siteUrl: env('SITE_URL', 'https://jnrengineering.co.uk').replace(/\/$/, ''),
-    cookieSecure: !flag('ALLOW_INSECURE_COOKIES', false),
+    // Always Secure on Vercel. The insecure override only works for local development.
+    cookieSecure: !!process.env.VERCEL || !flag('ALLOW_INSECURE_COOKIES', false),
     allowedOrigins: env('ALLOWED_ORIGINS', '').split(',').map((s) => s.trim()).filter(Boolean),
     sessionHours: Number(env('SESSION_HOURS', '12')),
     storage: {
@@ -36,6 +37,7 @@ function getConfig() {
       maxBytes: Number(env('UPLOAD_MAX_BYTES', String(25 * 1024 * 1024))),
       maxPerEntry: Number(env('UPLOAD_MAX_PER_ENTRY', '12')),
       presignSeconds: 600,
+      signContentLength: flag('S3_SIGN_CONTENT_LENGTH', true),
     },
     caption: {
       // 'template' is free and offline. 'anthropic' calls a paid API: it stays off until AI_CAPTIONS_ENABLED=true.

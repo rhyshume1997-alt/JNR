@@ -35,7 +35,11 @@ function presignPut(cfg, bucket, key, contentType, opts) {
   const t = target(cfg, bucket, key);
   const now = (opts && opts.now) || new Date();
   const expires = (opts && opts.expires) || 600;
-  return presign(cfg, 'PUT', t, expires, now, contentType ? { 'content-type': contentType } : {});
+  const signed = contentType ? { 'content-type': contentType } : {};
+  // Signing content-length pins the upload to exactly the size that was checked at request time, so a signed link cannot be
+  // used to push a larger file. Browsers send Content-Length themselves; the caller does not need to set it.
+  if (opts && opts.contentLength !== undefined) signed['content-length'] = String(opts.contentLength);
+  return presign(cfg, 'PUT', t, expires, now, signed);
 }
 
 function presignGet(cfg, bucket, key, opts) {
@@ -60,7 +64,8 @@ function presign(cfg, method, t, expires, now, extraHeaders) {
   const canonical = [method, t.path, canonicalQuery(params), canonicalHeaders, signedHeaders, 'UNSIGNED-PAYLOAD'].join('\n');
   const toSign = ['AWS4-HMAC-SHA256', date, scope, sha256hex(canonical)].join('\n');
   const signature = crypto.createHmac('sha256', signingKey(cfg.secretAccessKey, day, cfg.region, 's3')).update(toSign).digest('hex');
-  return { url: t.origin + t.path + '?' + canonicalQuery(params) + '&X-Amz-Signature=' + signature, method, headers: extraHeaders };
+  const send = Object.assign({}, extraHeaders); delete send['content-length'];
+  return { url: t.origin + t.path + '?' + canonicalQuery(params) + '&X-Amz-Signature=' + signature, method, headers: send };
 }
 
 // Server-side requests with an Authorization header.
@@ -96,7 +101,10 @@ function storageCfg() {
 }
 
 const storage = {
-  presignUpload(key, contentType) { const c = storageCfg(); return presignPut(c, c.privateBucket, key, contentType, { expires: getConfig().upload.presignSeconds }); },
+  presignUpload(key, contentType, size) {
+    const c = storageCfg(); const u = getConfig().upload;
+    return presignPut(c, c.privateBucket, key, contentType, { expires: u.presignSeconds, contentLength: u.signContentLength ? size : undefined });
+  },
   async head(bucketName, key) {
     const c = storageCfg();
     const res = await request(c, 'HEAD', c[bucketName], key);

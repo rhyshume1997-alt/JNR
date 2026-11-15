@@ -23,6 +23,7 @@ module.exports = async function handler(req, res) {
     const m = url.pathname.match(/^\/our-work\/([^/]+)\/?$/);
     if (m) { view = 'entry'; slug = decodeURIComponent(m[1]); }
     else if (/^\/api\/feed\/?$/.test(url.pathname)) view = 'feed';
+    else if (/^\/sitemap-work\.xml$/.test(url.pathname)) view = 'sitemap';
     else view = 'index';
   }
   const html = (status, body, cache) => send(res, status, body, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': cache || CACHE });
@@ -30,6 +31,16 @@ module.exports = async function handler(req, res) {
     if (view === 'feed') {
       const items = render.feedItems(await liveEntries(3));
       return send(res, 200, { items }, { 'Cache-Control': CACHE, 'Access-Control-Allow-Origin': '*' });
+    }
+    if (view === 'sitemap') {
+      // Lists /our-work and case studies only once something is published, so an empty (noindex) page is never in a sitemap.
+      const rows = await liveEntries(200);
+      const site = require('./_lib/config').getConfig().siteUrl;
+      const esc = render.esc;
+      const urls = rows.length ? [site + '/our-work'].concat(rows.filter((r) => r.live_snapshot.is_case_study && r.live_snapshot.body).map((r) => site + '/our-work/' + encodeURIComponent(r.slug))) : [];
+      const lastmod = rows.length ? new Date(rows[0].live_at).toISOString().slice(0, 10) : null;
+      const xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + urls.map((u) => '  <url><loc>' + esc(u) + '</loc>' + (lastmod ? '<lastmod>' + lastmod + '</lastmod>' : '') + '</url>').join('\n') + '\n</urlset>\n';
+      return send(res, 200, xml, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': CACHE });
     }
     if (view === 'entry') {
       if (!/^[a-z0-9-]{1,80}$/.test(String(slug || ''))) return html(404, render.renderNotFound(), 'public, max-age=0, s-maxage=30');

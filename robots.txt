@@ -4,3 +4,4 @@ Disallow: /api/
 Disallow: /thanks
 
 Sitemap: https://jnrengineering.co.uk/sitemap.xml
+Sitemap: https://jnrengineering.co.uk/sitemap-work.xml

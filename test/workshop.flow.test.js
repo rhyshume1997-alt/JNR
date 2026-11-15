@@ -341,6 +341,13 @@ describe('workshop content system (database)', { skip: SKIP }, () => {
       assert.match(await (await fetch(app.origin + '/our-work')).text(), /Edited title, not approved yet/);
       assert.strictEqual(bufCreates() - creates, 0, 'caption and photos unchanged, so no second draft');
     });
+    it('serves a sitemap that lists Our Work and case studies only while something is published', async () => {
+      const xml = await (await fetch(app.origin + '/sitemap-work.xml')).text();
+      assert.match(xml, /<loc>https:\/\/jnrengineering\.co\.uk\/our-work<\/loc>/);
+      assert.match(xml, /<loc>https:\/\/jnrengineering\.co\.uk\/our-work\/flange-set-for-the-marine-sector-[0-9a-f]{4}<\/loc>/);
+      assert.ok(!xml.includes('Zeta') && !xml.includes('originals'));
+      assert.strictEqual((await fetch(app.origin + '/sitemap-work.xml')).headers.get('content-type').split(';')[0], 'application/xml');
+    });
     it('returns 404 for entries that are not live, and for odd slugs', async () => {
       assert.strictEqual((await fetch(app.origin + '/our-work/does-not-exist')).status, 404);
       assert.strictEqual((await fetch(app.origin + '/our-work/..%2F..%2Fetc')).status, 404);
@@ -364,6 +371,25 @@ describe('workshop content system (database)', { skip: SKIP }, () => {
       assert.strictEqual(r.data.status, 'published');
       assert.strictEqual(bufCreates() - creates, 3, 'two refused, one accepted');
       assert.strictEqual([...buf.state.posts.values()].filter((p) => p.text.includes('Rate limited')).length, 1);
+    });
+    it('retries a coded RATE_LIMIT_EXCEEDED answer (Buffer replies HTTP 200 with errors[]) and then saves one draft', async () => {
+      const id = await approvedForLinkedIn('Coded rate limit');
+      buf.state.mode = 'gql-rate-limit'; buf.state.failures = 2;
+      const creates = bufCreates();
+      const r = await editor.post('/entries/' + id + '/publish');
+      buf.state.mode = 'ok';
+      assert.strictEqual(r.data.status, 'published');
+      assert.strictEqual(bufCreates() - creates, 3);
+      assert.strictEqual([...buf.state.posts.values()].filter((p) => p.text.includes('Coded rate limit')).length, 1);
+    });
+    it('treats a coded UNEXPECTED server error on create as uncertain, never as a safe retry', async () => {
+      const id = await approvedForLinkedIn('Coded unexpected');
+      buf.state.mode = 'gql-unexpected-after'; buf.state.failures = 1;
+      const creates = bufCreates();
+      const r = await editor.post('/entries/' + id + '/publish');
+      buf.state.mode = 'ok';
+      assert.strictEqual(r.data.results[0].status, 'uncertain');
+      assert.strictEqual(bufCreates() - creates, 1);
     });
     it('marks a refused request as failed (not uncertain), keeps the entry retryable, and succeeds on retry', async () => {
       const id = await approvedForLinkedIn('Refused then fine');
@@ -431,7 +457,7 @@ describe('workshop content system (database)', { skip: SKIP }, () => {
       process.env.BUFFER_API_TOKEN = 'wrong-token-value';
       const r = await editor.post('/entries/' + id + '/publish');
       process.env.BUFFER_API_TOKEN = 'good-token';
-      assert.strictEqual(r.data.results[0].status, 'failed');
+      assert.strictEqual(r.data.results[0].status, 'failed'); assert.match(r.data.results[0].error, /UNAUTHORIZED/);
       assert.ok(!JSON.stringify(r.data).includes('wrong-token-value'));
     });
     it('uses only the staging channel in staging, and refuses production without a configured channel', async () => {

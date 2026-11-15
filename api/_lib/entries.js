@@ -301,7 +301,7 @@ async function presignImage(user, entryId, file) {
   const key = 'originals/' + entryId + '/' + imageId;
   const name = M.clean(file.name).slice(0, 120);
   await query('insert into entry_images (id, entry_id, position, original_key, original_name, content_type, bytes) values ($1,$2,$3,$4,$5,$6,$7)', [imageId, entryId, cnt[0].n, key, name, type, size]);
-  return { image_id: imageId, upload: storage.presignUpload(key, type) };
+  return { image_id: imageId, upload: storage.presignUpload(key, type, size) };
 }
 
 async function finalizeImage(user, imageId) {

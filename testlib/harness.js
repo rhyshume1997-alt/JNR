@@ -86,7 +86,7 @@ async function startFakeS3(opts) {
     const obj = objects.get(path);
     if (req.method === 'DELETE') { objects.delete(path); res.writeHead(204); return res.end(); }
     if (!obj) { res.writeHead(404); return res.end(); }
-    res.writeHead(200, { 'content-length': obj.body.length, 'content-type': obj.type || 'application/octet-stream' });
+    res.writeHead(200, Object.assign({ 'content-length': obj.body.length, 'content-type': obj.type || 'application/octet-stream' }, obj.cache ? { 'cache-control': obj.cache } : {}));
     res.end(req.method === 'HEAD' ? undefined : obj.body);
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
@@ -102,12 +102,15 @@ async function startFakeBuffer() {
     const body = JSON.parse(Buffer.concat(chunks).toString() || '{}');
     state.calls.push({ query: body.query, variables: body.variables, auth: req.headers.authorization });
     const reply = (status, json, headers) => { res.writeHead(status, Object.assign({ 'content-type': 'application/json' }, headers)); res.end(JSON.stringify(json)); };
-    if (req.headers.authorization !== 'Bearer ' + state.token) return reply(401, { errors: [{ message: 'unauthorized' }] });
+    // Like the real API (see Buffer's error-handling guide): HTTP 200 with a coded error.
+    if (req.headers.authorization !== 'Bearer ' + state.token) return reply(200, { data: null, errors: [{ message: 'Not authorized', extensions: { code: 'UNAUTHORIZED' } }] });
     const isCreate = /createPost/.test(body.query);
     if (state.failures > 0 && state.mode !== 'ok') {
       state.failures--;
       if (state.mode === '429') return reply(429, {}, { 'retry-after': '0' });
       if (state.mode === '503-before') return reply(503, {});
+      if (state.mode === 'gql-rate-limit') return reply(200, { data: null, errors: [{ message: 'Too many requests', extensions: { code: 'RATE_LIMIT_EXCEEDED' } }] });
+      if (state.mode === 'gql-unexpected-after' && isCreate) { storePost(body.variables.input); return reply(200, { data: null, errors: [{ message: 'Something went wrong', extensions: { code: 'UNEXPECTED' } }] }); }
       if (state.mode === '503-after' && isCreate) { storePost(body.variables.input); return reply(503, {}); }
       if (state.mode === 'reset-after' && isCreate) { storePost(body.variables.input); return req.socket.destroy(); }
     }
@@ -129,6 +132,9 @@ async function startFakeBuffer() {
       const p = state.posts.get(body.variables.input.id);
       return reply(200, { data: { post: p || null } });
     }
+    if (/account\s*\{/.test(body.query)) return reply(200, { data: { account: { id: 'acct1', organizations: [{ id: 'o'.repeat(24), name: 'Fake org' }] } } });
+    if (/channels\(/.test(body.query)) return reply(200, { data: { channels: [{ id: process.env.BUFFER_STAGING_CHANNEL_ID, name: 'fake-profile', service: 'linkedin', type: 'profile', isDisconnected: false, isLocked: false }] } });
+    if (/__type/.test(body.query)) return reply(200, { data: { __type: { name: 'CreatePostInput', kind: 'INPUT_OBJECT', inputFields: ['channelId', 'text', 'saveToDraft', 'assets', 'schedulingType', 'mode', 'dueAt'].map((name) => ({ name })) } } });
     reply(200, { data: {} });
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));

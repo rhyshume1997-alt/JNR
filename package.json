@@ -14,6 +14,11 @@
   "scripts": {
     "test": "node --test",
     "migrate": "node scripts/migrate.js",
-    "buffer:check": "node scripts/buffer-check.js"
+    "buffer:check": "node scripts/buffer-check.js",
+    "staging:check": "node scripts/staging-check.js",
+    "staging:e2e": "node scripts/staging-e2e.js",
+    "cleanup:orphans": "node scripts/cleanup-orphans.js",
+    "redirect:activate": "node scripts/activate-our-work-redirect.js",
+    "test:browser": "node e2e/browser.e2e.js"
   }
 }
