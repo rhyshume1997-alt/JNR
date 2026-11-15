@@ -17,10 +17,6 @@ async function liveEntries(limit) {
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { error: 'method_not_allowed' }, { Allow: 'GET, HEAD' });
   const url = new URL(req.url, 'http://x');
-  if (url.searchParams.get('__debug') === '1') { // TEMPORARY diagnostic, removed in the next commit
-    const h = {}; ['x-matched-path', 'x-vercel-id', 'x-now-route-matches', 'x-forwarded-host'].forEach((k) => { h[k] = req.headers[k] || null; });
-    return send(res, 200, { url: req.url, originalUrl: req.originalUrl || null, query: req.query || null, headers: h });
-  }
   let view = url.searchParams.get('view');
   let slug = url.searchParams.get('slug');
   if (!view) {
@@ -56,7 +52,9 @@ module.exports = async function handler(req, res) {
     return html(200, render.renderIndex(await liveEntries(60)));
   } catch (e) {
     console.error('public page error:', e && e.stack || e);
-    // Never show a broken page: the site still works without this section.
+    // Never show a broken page or the wrong content type: answer in the format that was asked for, and never cache a failure.
+    if (view === 'feed') return send(res, 503, { items: [], error: 'unavailable' }, { 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*' });
+    if (view === 'sitemap') return send(res, 503, '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>\n', { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'no-store' });
     return html(503, render.renderIndex([]).replace('New work will be added here soon.', 'This page is having a problem. Please try again shortly.'), 'no-store');
   }
 };
