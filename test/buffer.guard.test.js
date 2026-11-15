@@ -4,6 +4,20 @@ const assert = require('node:assert');
 const B = require('../api/_lib/buffer');
 
 const ch = 'a'.repeat(24);
+describe('Buffer error handling (documented and observed codes)', () => {
+  const err = (code) => B.fromGraphqlError([{ message: 'm', extensions: { code } }]);
+  it('maps each code to what is safe to do next', () => {
+    assert.strictEqual(err('UNAUTHORIZED').kind, 'permanent');
+    assert.strictEqual(err('UNAUTHENTICATED').kind, 'permanent', 'observed on the live API for a bad key');
+    assert.strictEqual(err('FORBIDDEN').kind, 'permanent');
+    assert.strictEqual(err('NOT_FOUND').kind, 'permanent');
+    assert.strictEqual(err('RATE_LIMIT_EXCEEDED').kind, 'safe');
+    assert.strictEqual(err('UNEXPECTED').kind, 'ambiguous');
+    assert.strictEqual(err('SOMETHING_NEW').kind, 'permanent');
+    assert.strictEqual(B.fromGraphqlError([{ message: 'Cannot query field x' }]).kind, 'permanent');
+  });
+});
+
 describe('Buffer draft-only guard', () => {
   it('builds inputs that always save a draft and never schedule', () => {
     const i = B.draftInput({ channelId: ch, text: 'Hi', imageUrls: ['https://m/x.jpg'], altTexts: ['alt'] });

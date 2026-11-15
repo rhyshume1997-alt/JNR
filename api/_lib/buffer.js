@@ -70,7 +70,8 @@ function fromGraphqlError(errors) {
   const first = errors[0] || {};
   const code = first.extensions && first.extensions.code;
   const msg = errors.map((x) => x.message).join('; ');
-  if (code === 'UNAUTHORIZED' || code === 'FORBIDDEN') return new BufferError('permanent', 'Buffer refused the API token (' + code + '). Check BUFFER_API_TOKEN.', errors);
+  // Buffer's guide documents UNAUTHORIZED; the live API was observed answering UNAUTHENTICATED (HTTP 401) for a bad key.
+  if (code === 'UNAUTHORIZED' || code === 'UNAUTHENTICATED' || code === 'FORBIDDEN') return new BufferError('permanent', 'Buffer refused the API token (' + code + '). Check BUFFER_API_TOKEN.', errors);
   if (code === 'NOT_FOUND') return new BufferError('permanent', 'Buffer could not find that item (NOT_FOUND).', errors);
   if (code === 'RATE_LIMIT_EXCEEDED') return new BufferError('safe', 'Buffer rate limit reached (RATE_LIMIT_EXCEEDED).', errors); // refused, not processed
   if (code === 'UNEXPECTED') return new BufferError('ambiguous', 'Buffer had a server error (UNEXPECTED) and may or may not have processed the request.', errors);
@@ -154,4 +155,4 @@ async function listChannels(organizationId) {
   return data.channels;
 }
 
-module.exports = { QUERIES, BufferError, draftInput, assertDraftOnly, createDraft, readPost, verifyDraft, listChannels, gql };
+module.exports = { fromGraphqlError, QUERIES, BufferError, draftInput, assertDraftOnly, createDraft, readPost, verifyDraft, listChannels, gql };

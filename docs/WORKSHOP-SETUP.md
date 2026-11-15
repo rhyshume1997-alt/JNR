@@ -1,65 +1,59 @@
-# Workshop content system: setup
+# Workshop content system: setup and status
 
-One internal content source feeds the website (Our Work, case studies, homepage strip) and LinkedIn (as Buffer **drafts only**).
-Nothing here is deployed or switched on until you do the steps below. Nothing in this document costs money until you create the accounts it names.
+One internal content source feeds the website (Our Work, case studies, homepage strip) and LinkedIn (as Buffer **drafts only**). Nothing is deployed to production, merged, or published to LinkedIn by this work.
+
+Branch: `feature/workshop-content` (never merged to `main`). Security review: `docs/SECURITY-REVIEW.md`. Tolra: `docs/TOLRA-INTEGRATION.md` (disabled).
 
 ## How it works
+1. Staff open `/workshop` on a phone, sign in, record a job (in production, completed or workshop update) with title, short description, material, process, stage and photos. Customer details are private and optional.
+2. Photos go straight to **private** storage with a signed link; the server checks each file and rejects drawings and CAD files by content. Originals stay private.
+3. An editor reviews in `/admin`: edits, orders photos, ticks each photo as checked, chooses destinations, writes or generates the caption, then **approves**. Approval runs the confidentiality checks and only then creates public copies (resized, all EXIF/GPS removed).
+4. **Publish** is a separate click. The website shows the approved snapshot; LinkedIn gets a **draft in Buffer** (`saveToDraft: true`) that the server reads back to verify caption, image list and order. You publish from Buffer.
 
-1. Workshop staff open `/workshop` on a phone, sign in, and record a job: title, short description, material, process, stage, photos, optional private customer details. Type is *in production*, *completed* or *workshop update*.
-2. Photos go **straight from the phone to private storage** with a short-lived signed link. The server then checks each file (real file type from its bytes, decodes it, size, minimum dimensions) and rejects drawings, CAD files and corrupt images. Originals are kept untouched and private.
-3. An editor reviews in `/admin`: edits text, orders photos, ticks each photo as checked, picks destinations, writes or generates the LinkedIn caption, then **approves**. Approval runs the confidentiality checks and only then creates public copies (resized, all EXIF/GPS removed) with permanent URLs.
-4. Publishing is a separate click. The website shows the approved snapshot. LinkedIn gets a **draft in Buffer** (`saveToDraft: true`), which the server reads back to verify the caption and images. You publish from Buffer yourself.
+States: `draft`, `pending_approval`, `approved`, `rejected`, `published`, `failed`. Roles: `workshop`, `editor`, `admin`.
 
-Statuses: `draft`, `pending_approval`, `approved`, `rejected`, `published`, `failed`. Editing anything that was already approved sends it back to `draft`, but the public site keeps showing the last approved version until the new one is approved and published.
+## What changed on the site
+- `Our Work` is in the nav, mobile menu and footer of every existing page (`/our-work` shows "new work soon" and is `noindex` until something is published).
+- `/sitemap-work.xml` (listed in `robots.txt`) is generated: it is empty until something is published, so an empty page is never in a sitemap. The static `sitemap.xml` is untouched.
+- **`/projects` redirect is prepared, not active.** When `/our-work` is ready: `npm run redirect:activate` (or `-- --check` to preview) makes `/projects`, `/projects/` and `/work` redirect (301) to `/our-work`, then deploy as normal. It is idempotent and tested.
+- Homepage: a "Recent work" strip appears only when something is published.
 
-Roles: `workshop` (own entries, before approval), `editor` (everything except users, un-publishing and naming customers), `admin` (all). You cannot approve your own entry unless you are an admin.
+## Hosting plan and costs
+| Part | Finding | Cost |
+|---|---|---|
+| Vercel | The `jnr` project is on **Hobby** (checked). Hobby is Vercel's personal, non-commercial plan, and JNR is a business, so the site arguably should be on **Pro (about $20/user/month)** regardless of this work. This adds 2 functions (limit 12) and no cron jobs. Preview protection (Vercel Authentication) is on and works on Hobby. | $0 more on Hobby; Pro is your call |
+| Postgres | The Supabase organization I could reach ("QuoteFlow") is on the paid Pro plan with three projects, so a new project there would bill extra. I did not create one. Use a **new free Supabase organization/project** (or Neon free). | $0 |
+| Photos | Cloudflare R2, free up to 10 GB (needs a card on file). A photo is about 4 MB, so 10 GB is roughly 2,500 photos. | $0 to start |
+| Buffer | The Free plan includes an API key (1 key, 150 requests per 15 minutes, 600 a day). Each publish uses about 2 requests. Buffer's reference says drafts skip posting-limit checks. | $0 |
+| AI captions | Off. Free template captions are used. | $0 |
 
-## What is never published automatically
-
-Customer name, job reference, customer notes, internal notes, original photos and anything in a photo you have not ticked as checked. Approval is blocked if the public text contains the customer name, job reference, an email address, a phone number or a PO number. It asks for confirmation when it sees drawing numbers, revisions, tolerances or part-number-like text. Only an admin can allow a customer to be named.
-
-## Costs (confirm before enabling)
-
-| Part | Suggested | Cost to start | Notes |
-|---|---|---|---|
-| Hosting | existing Vercel project | whatever JNR pays now | Vercel's free Hobby plan is for non-commercial use. Check which plan JNR is on. This adds 2 functions (limit is 12). No cron jobs are used. |
-| Database | Supabase or Neon, Postgres | free tier | Free projects can pause when idle (Supabase after about a week). First request after a pause is slow. |
-| Photo storage | Cloudflare R2 (S3-compatible) | free up to 10 GB | Needs a card on file. Originals are large: about 4 MB a photo, so 10 GB is roughly 2,500 photos. Supabase Storage's free 1 GB would fill in a few months. Any S3-compatible store works. |
-| Buffer | existing account | $0 if your plan includes API access | I could not check Buffer's plan rules for the API from the build environment. Confirm API access and whether drafts count toward the free plan's post limit. |
-| AI captions | off | $0 while off | Optional paid API. Roughly a fraction of a penny per caption with a small model, but confirm the price. The free template generator is the default. |
-
-## Setup steps
-
-1. **Database.** Create a Postgres project. Copy the *pooled* connection string into `DATABASE_URL`. Run `npm install` then `DATABASE_URL=... npm run migrate`.
-2. **Storage.** Create two buckets: a **private** one and a **public** one. Put a custom domain on the public bucket (for example `media.jnrengineering.co.uk`). R2's `r2.dev` address is rate limited and not for production. Create an access key limited to those two buckets. Set the `S3_*` variables and `PUBLIC_MEDIA_BASE_URL`.
-   Add this CORS rule to the **private** bucket so phones can upload directly (replace the origin, and add your preview URL if you test there):
+## Exact setup actions (staging)
+1. **Postgres (free).** Create a free Supabase org + project in London (or Neon). Copy the *pooled* connection string. Then: `DATABASE_URL=... npm ci && npm run migrate`.
+2. **Cloudflare R2.** Create two buckets: `jnr-private` (no public access) and `jnr-public`. Put a custom domain on the public bucket (for example `media.jnrengineering.co.uk`). Do not use `r2.dev` (rate limited), and make sure no bot-protection or WAF challenge applies to that media domain: Buffer fetches the image itself when the draft is created. Create an API token limited to those two buckets (Object Read & Write). Add this CORS rule to the **private** bucket:
    ```json
-   [{"AllowedOrigins":["https://jnrengineering.co.uk"],"AllowedMethods":["PUT"],"AllowedHeaders":["content-type"],"MaxAgeSeconds":3600}]
+   [{"AllowedOrigins":["https://jnr-git-feature-workshop-content-rhsys-projects.vercel.app"],"AllowedMethods":["PUT"],"AllowedHeaders":["content-type"],"MaxAgeSeconds":3600}]
    ```
-3. **First admin.** `CREATE_USER_PASSWORD='a long passphrase' DATABASE_URL=... node scripts/create-user.js admin you@example.com "Your Name"`. Then add staff in `/admin` > Users. Passwords need 12+ characters. Five wrong passwords lock the account for 15 minutes.
-4. **Buffer.** Create an API token in Buffer. Set `BUFFER_API_TOKEN`. Set `BUFFER_ENV=staging` and `BUFFER_STAGING_CHANNEL_ID` to the connected personal LinkedIn profile. In staging the server can *only* use that channel. Run `BUFFER_API_TOKEN=... npm run buffer:check -- --channels <organizationId>` to confirm the schema and list channel ids (see "Not verified" below).
-5. **Vercel.** Add the variables from `.env.example` to *Preview* only first. Do not put production values in until staging has been tested. Review `vercel.json` (new rewrites and admin/workshop headers).
-6. **Staging test.** Open `/workshop`, submit a job with two photos, approve and publish it from `/admin`, then open Buffer and check there is one draft with the images. Nothing should be on LinkedIn.
-7. **Go live for JNR.** Connect JNR's LinkedIn page in Buffer, set `BUFFER_CHANNEL_ID_LINKEDIN`, then change `BUFFER_ENV` to `production`. Until then the personal profile is the only target.
+   (for production use `https://jnrengineering.co.uk`).
+3. **Buffer.** Create an API key at publish.buffer.com/settings/api. The staging channel is your personal LinkedIn profile, id `6afa05fbece6dfde5fd74165` (from the earlier test).
+4. **Vercel, Preview scope only** (Project Settings > Environment Variables). Do not set Production yet. Names are in `.env.example`:
+   `DATABASE_URL`, `SITE_URL` (the preview URL), `S3_ENDPOINT` (`https://<account>.r2.cloudflarestorage.com`), `S3_REGION=auto`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET_PRIVATE`, `S3_BUCKET_PUBLIC`, `PUBLIC_MEDIA_BASE_URL`, `BUFFER_API_TOKEN`, `BUFFER_ENV=staging`, `BUFFER_STAGING_CHANNEL_ID`. Leave `AI_CAPTIONS_ENABLED`, `TOLRA_ENABLED` unset. Mark the secrets Sensitive.
+5. **First admin.** `CREATE_USER_PASSWORD='long passphrase' DATABASE_URL=... node scripts/create-user.js admin you@example.com "Your Name"`.
+6. **Verify the real services**, from your computer with the same variables exported:
+   - `npm run staging:check` (read-only: database, row level security, private bucket is private, signed upload, CORS, public URL for automated fetchers, Buffer key, channel, schema). Set `STAGING_ORIGIN` to the preview URL to test CORS from it.
+   - `npm run staging:e2e -- --confirm-draft` runs the whole flow with throw-away users and one clearly named test entry, creates **one draft** in Buffer on the staging channel, reads it back, checks both images are attached and in order, checks the public images are anonymous and metadata-free, checks no private marker appears anywhere public, then deletes its test data. Delete the draft in Buffer afterwards (its id is printed).
+7. **Phone test on the preview.** Open `https://jnr-git-feature-workshop-content-rhsys-projects.vercel.app/workshop` on your phone (sign in to Vercel first, that is the access protection), add a job with 2 to 3 photos, then in `/admin`: tick the photos, tick LinkedIn, Generate caption, Approve, Publish. Open Buffer: one draft with the images. Open `/our-work` on the preview: only the approved entry, none of the private details.
+8. **Go-live for JNR** (only with your approval): connect JNR's LinkedIn page in Buffer, set Production variables and `BUFFER_CHANNEL_ID_LINKEDIN`, set `BUFFER_ENV=production`, run `npm run redirect:activate`, merge.
 
-## Local development and tests
+## Tests
+- `npm test`: 126 tests (unit, security review, end-to-end flow with real Postgres and local fakes for storage and Buffer). Database tests need `TEST_DATABASE_URL=postgres://user@localhost:5432/postgres` (a throw-away database is created and dropped per file) and are skipped without it.
+- `npm run test:browser`: 12 Chromium tests (phone form, interrupted uploads, lost replies, session expiry, permissions, failed Buffer step and recovery, public pages and leak checks, CSP). Needs Playwright.
+- `node testlib/demo.js`: the whole site locally with fakes, to look at in a browser.
+- The fake storage re-checks every upload signature independently; the signer matches the worked example in AWS's Signature V4 documentation.
 
-`npm test` runs everything. The database tests need a Postgres server: `TEST_DATABASE_URL=postgres://user@localhost:5432/postgres npm test` (it creates and drops a throw-away database per test file). Without it those tests are skipped and say so. Storage, Buffer and the caption service are local fakes in `testlib/harness.js`; the tests never touch the internet. The fake storage re-checks every upload signature independently, and the signer matches the worked example in the AWS Signature V4 documentation.
-
-`node testlib/demo.js` starts the whole site locally with the fakes, for looking at the pages in a browser.
-
-## Safety properties (each has a test)
-
-- Buffer calls can only create drafts: `assertDraftOnly` refuses `saveToDraft: false`, any `dueAt`, and any `mode` other than `addToQueue`.
-- Staging can only ever use the staging channel; production refuses to run without its own channel id.
-- Idempotency: creating an entry twice with the same key makes one entry. Publishing the same caption and photos again does not make a second Buffer draft (unique key on entry, channel and content hash).
-- Retries: rate limits and refused connections are retried with backoff. A request that may have reached Buffer (timeout, dropped connection, 5xx) is **not** retried: it becomes `uncertain`, and a person checks Buffer and either links the draft they find or allows a retry. This prevents duplicate LinkedIn drafts.
-- Read-back: after saving, the draft is read from Buffer and must match the approved caption, image list and order, be a draft, have no scheduled or sent time, and be on the right channel.
-- Audit: sign-ins, edits (field names only for private fields), approvals, publishing and failures are recorded with who and when.
-
-## Not verified (please read)
-
-- **Buffer's schema.** I could not reach `developers.buffer.com` from the build environment. The create-draft call follows Buffer's documented `createPost` example (endpoint `https://api.buffer.com`, `saveToDraft`, typed `assets` array, `PostActionSuccess | MutationError`). The read-back query, `post(input: {id})`, and the asset field names are my best reading and are **untested against the live API**. `npm run buffer:check` compares them with the live schema without changing anything; if something differs, every query is in one object (`QUERIES` in `api/_lib/buffer.js`). The earlier manual test through the connected Buffer tool did confirm a draft with an image saves and reads back.
-- **Vercel specifics.** The rewrites in `vercel.json`, the 30 second function limit, and `sharp` running in Vercel's runtime have not been exercised on Vercel. Test on a preview deployment first.
-- **Real storage.** Uploads were tested against a fake that verifies signatures, not against R2 or Supabase. The bucket CORS rule above is the usual cause of a failed first upload.
-- **Not included:** two-factor sign-in, email password resets (an admin resets passwords in Users), and automatic cleanup of public image copies (kept deliberately, because a published page or LinkedIn draft may point at them). Add the new Our Work link to the nav of the existing static pages after approval. The existing `/projects/` placeholder is untouched; decide whether it should redirect to `/our-work`. Add the new pages to `sitemap.xml` once there are real entries. Mention staff photos and accounts in `privacy.html` if needed.
+## Buffer verification record
+Checked on 2026-11-15 against https://developers.buffer.com/reference.html, the create-draft example and the error-handling, rate-limit and hosting-media guides:
+- `createPost(input: CreatePostInput!)` with `saveToDraft`, `schedulingType: automatic`, `mode: addToQueue` is exactly the documented draft example. `PostStatus` includes `draft`.
+- Read-back uses `post(input: PostInput!)` and `Post.assets` (the `Asset` interface: `type`, `mimeType`, `source`, `thumbnail`). Confirmed in the reference and by live introspection (`npm run buffer:check` passed against api.buffer.com).
+- Buffer always answers HTTP 200 with coded errors; rate limits and server errors are handled by code (and the live API was seen answering `UNAUTHENTICATED` with HTTP 401 for a bad key; both are handled).
+- Image URLs must be public, direct, https and permanent, and Buffer fetches them when the draft is created: the public copies are immutable and permanent.
+- **Not yet done:** the authenticated calls (create a real draft, read it back) from this build environment: the saved API key was rejected as "not valid", so the live draft test has to be run by you with step 6. The earlier manual draft with an image through the Buffer connector did save and read back correctly.

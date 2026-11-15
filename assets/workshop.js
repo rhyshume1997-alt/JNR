@@ -98,7 +98,12 @@
           h('button', { class: 'big', type: 'button', text: 'Add another update', onclick: renderForm })));
       } catch (e) {
         if (e.data && e.data.errors) { Object.keys(e.data.errors).forEach(function (k) { var n = document.getElementById(k + '-err'); if (n) n.textContent = e.data.errors[k]; }); flash('Please fix the highlighted fields.', 'bad'); }
-        else if (e.status === 401) { start(); return; }
+        else if (e.status === 401) {
+          // Signed out part way through (a long job, a lost signal). Keep everything typed and photos chosen; sign in right here.
+          msg.textContent = '';
+          msg.appendChild(h('div', { class: 'notice warn', role: 'alert', text: 'You were signed out. Sign in again and your update will carry on. Nothing you typed is lost.' }));
+          msg.appendChild(JNR.loginForm(function () { msg.textContent = ''; flash('Signed in. Tap "Save update" to carry on.'); }));
+        }
         else flash(e.message + (entryId ? ' Your details are saved. Tap "Save update" to carry on.' : ''), 'bad');
       } finally { send.disabled = false; send.textContent = 'Save update'; }
     } },

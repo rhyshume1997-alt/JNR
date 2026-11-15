@@ -38,6 +38,7 @@ describe('site wiring', () => {
     const get = (k) => h.headers.find((x) => x.key === k).value;
     assert.match(get('X-Robots-Tag'), /noindex/); assert.strictEqual(get('Cache-Control'), 'no-store'); assert.strictEqual(get('X-Frame-Options'), 'DENY');
     assert.match(get('Content-Security-Policy'), /script-src 'self'/);
+    assert.match(get('Content-Security-Policy'), /connect-src 'self' https:\/\/\*\.r2\.cloudflarestorage\.com;/, 'uploads may only go to Cloudflare R2, not any https host');
     assert.ok(!/unsafe-inline|unsafe-eval/.test(get('Content-Security-Policy').replace("style-src 'self' https://fonts.googleapis.com", '')), 'no unsafe script policy');
     for (const f of ['admin/index.html', 'workshop/index.html']) { assert.match(read(f), /noindex/); assert.ok(!/<script(?![^>]*src=)[^>]*>/.test(read(f)), f + ' has no inline script'); assert.ok(!/ style="/.test(read(f)), f + ' has no inline style'); }
   });

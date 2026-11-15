@@ -19,6 +19,6 @@
     "staging:e2e": "node scripts/staging-e2e.js",
     "cleanup:orphans": "node scripts/cleanup-orphans.js",
     "redirect:activate": "node scripts/activate-our-work-redirect.js",
-    "test:browser": "node e2e/browser.e2e.js"
+    "test:browser": "node --test e2e/browser.e2e.js"
   }
 }
