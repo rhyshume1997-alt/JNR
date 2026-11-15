@@ -62,6 +62,7 @@ Reviewed 2026-11-15 on branch `feature/workshop-content`. Scope: authentication,
 7. Buffer coded errors (rate limit returned as HTTP 200) were not retried; a lost reply on a server error could have been retried unsafely -> fixed.
 8. Cookie could be sent without `Secure` if a local override leaked into Vercel -> forced on.
 9. A signed-out session part way through the form lost what was typed -> form is kept.
+10. The database connection skipped TLS certificate verification for remote hosts -> now verified by default (Neon uses a public CA); `DATABASE_SSL_VERIFY=false` is an explicit opt-out for hosts with a private CA.
 
 ## Still open
 - Two-factor sign-in and password reset emails.

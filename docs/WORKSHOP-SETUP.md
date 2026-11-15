@@ -19,39 +19,67 @@ States: `draft`, `pending_approval`, `approved`, `rejected`, `published`, `faile
 - Homepage: a "Recent work" strip appears only when something is published.
 
 ## Hosting plan and costs
-| Part | Finding | Cost |
-|---|---|---|
-| Vercel | The `jnr` project is on **Hobby** (checked). Hobby is Vercel's personal, non-commercial plan, and JNR is a business, so the site arguably should be on **Pro (about $20/user/month)** regardless of this work. This adds 2 functions (limit 12) and no cron jobs. Preview protection (Vercel Authentication) is on and works on Hobby. | $0 more on Hobby; Pro is your call |
-| Postgres | The Supabase organization I could reach ("QuoteFlow") is on the paid Pro plan with three projects, so a new project there would bill extra. I did not create one. Use a **new free Supabase organization/project** (or Neon free). | $0 |
-| Photos | Cloudflare R2, free up to 10 GB (needs a card on file). A photo is about 4 MB, so 10 GB is roughly 2,500 photos. | $0 to start |
-| Buffer | The Free plan includes an API key (1 key, 150 requests per 15 minutes, 600 a day). Each publish uses about 2 requests. Buffer's reference says drafts skip posting-limit checks. | $0 |
-| AI captions | Off. Free template captions are used. | $0 |
+Checked in the Vercel dashboard by Rhys: the team that owns the `jnr` project ("rhsy's projects", `rhsys-projects`) is on an **active Pro plan** (billing period 24 Oct to 24 Nov, card on file). Nothing is transferred, bought or changed. (An earlier reading of "Hobby" came from a stale account-level billing field and was wrong.)
 
-## Exact setup actions (staging)
-1. **Postgres (free).** Create a free Supabase org + project in London (or Neon). Copy the *pooled* connection string. Then: `DATABASE_URL=... npm ci && npm run migrate`.
-2. **Cloudflare R2.** Create two buckets: `jnr-private` (no public access) and `jnr-public`. Put a custom domain on the public bucket (for example `media.jnrengineering.co.uk`). Do not use `r2.dev` (rate limited), and make sure no bot-protection or WAF challenge applies to that media domain: Buffer fetches the image itself when the draft is created. Create an API token limited to those two buckets (Object Read & Write). Add this CORS rule to the **private** bucket:
-   ```json
-   [{"AllowedOrigins":["https://jnr-git-feature-workshop-content-rhsys-projects.vercel.app"],"AllowedMethods":["PUT"],"AllowedHeaders":["content-type"],"MaxAgeSeconds":3600}]
-   ```
-   (for production use `https://jnrengineering.co.uk`).
-3. **Buffer.** Create an API key at publish.buffer.com/settings/api. The staging channel is your personal LinkedIn profile, id `6afa05fbece6dfde5fd74165` (from the earlier test).
-4. **Vercel, Preview scope only** (Project Settings > Environment Variables). Do not set Production yet. Names are in `.env.example`:
-   `DATABASE_URL`, `SITE_URL` (the preview URL), `S3_ENDPOINT` (`https://<account>.r2.cloudflarestorage.com`), `S3_REGION=auto`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET_PRIVATE`, `S3_BUCKET_PUBLIC`, `PUBLIC_MEDIA_BASE_URL`, `BUFFER_API_TOKEN`, `BUFFER_ENV=staging`, `BUFFER_STAGING_CHANNEL_ID`. Leave `AI_CAPTIONS_ENABLED`, `TOLRA_ENABLED` unset. Mark the secrets Sensitive.
-5. **First admin.** `CREATE_USER_PASSWORD='long passphrase' DATABASE_URL=... node scripts/create-user.js admin you@example.com "Your Name"`.
-6. **Verify the real services**, from your computer with the same variables exported:
-   - `npm run staging:check` (read-only: database, row level security, private bucket is private, signed upload, CORS, public URL for automated fetchers, Buffer key, channel, schema). Set `STAGING_ORIGIN` to the preview URL to test CORS from it.
-   - `npm run staging:e2e -- --confirm-draft` runs the whole flow with throw-away users and one clearly named test entry, creates **one draft** in Buffer on the staging channel, reads it back, checks both images are attached and in order, checks the public images are anonymous and metadata-free, checks no private marker appears anywhere public, then deletes its test data. Delete the draft in Buffer afterwards (its id is printed).
-7. **Phone test on the preview.** Open `https://jnr-git-feature-workshop-content-rhsys-projects.vercel.app/workshop` on your phone (sign in to Vercel first, that is the access protection), add a job with 2 to 3 photos, then in `/admin`: tick the photos, tick LinkedIn, Generate caption, Approve, Publish. Open Buffer: one draft with the images. Open `/our-work` on the preview: only the approved entry, none of the private details.
-8. **Go-live for JNR** (only with your approval): connect JNR's LinkedIn page in Buffer, set Production variables and `BUFFER_CHANNEL_ID_LINKEDIN`, set `BUFFER_ENV=production`, run `npm run redirect:activate`, merge.
+| Part | Cost to start |
+|---|---|
+| Vercel | Already covered by the Pro plan. The workshop system adds 2 functions and no cron jobs. |
+| Postgres | **Neon free plan** through Vercel Storage, Preview only. $0. |
+| Photos | **Cloudflare R2**, free up to 10 GB (a card must be on file). A photo is about 4 MB, so 10 GB is roughly 2,500 photos. |
+| Buffer | The Free plan includes an API key (150 requests per 15 minutes, 600 a day). Each publish uses about 2 requests. Buffer's reference says drafts skip posting-limit checks. |
+| AI captions | Off. Free template captions. |
+
+**Public image address.** For staging the public bucket uses R2's own address (`https://pub-....r2.dev`). That is fine for the tests, but Cloudflare rate-limits it and says it is not for production. R2 custom domains only work for a domain whose DNS is on Cloudflare, and `jnrengineering.co.uk` uses Namecheap DNS, so `media.jnrengineering.co.uk` is **not** available without moving DNS. Decide before go-live (not needed now): (a) a small separate domain on Cloudflare for media, (b) serve images through the JNR site at `/media/...` with a Vercel rewrite to the public bucket, which keeps a permanent address on the JNR domain, or (c) move JNR's DNS to Cloudflare. Buffer needs the URLs to be public, direct, https and permanent.
+
+## Setup: exact steps, in order (about 30 minutes)
+Everything is staging only. Nothing here touches the live JNR site, production variables or `main`.
+
+**On your computer (once)**
+1. `git clone https://github.com/rhyshume1997-alt/JNR && cd JNR && git checkout feature/workshop-content && npm ci` (Node 22 or newer).
+2. `cp .env.staging.example .env.staging`. You will fill it in as you go. It is git-ignored; never commit it.
+
+**Postgres: Neon via Vercel (Preview only)**
+3. Vercel > project `jnr` > **Storage** > **Create Database** > **Neon**. Plan: **Free**. Region: Europe (London) if offered. Environments: tick **Preview only** (untick Production and Development). If you see a setting to create a database branch for each preview deployment, turn it **off**: staging should use one shared database. Connect it.
+4. Neon dashboard > your database > **Connect** > copy the **pooled** connection string into `DATABASE_URL` in `.env.staging`.
+5. `npm run migrate:staging` (creates the tables, with row level security on).
+6. `CREATE_USER_PASSWORD='a long passphrase' npm run admin:create -- admin you@example.com "Your Name"`.
+
+**Cloudflare R2**
+7. Cloudflare dashboard > **R2** > enable (free plan, card required). Note the **Account ID** (R2 overview page). Set `S3_ENDPOINT=https://<account id>.r2.cloudflarestorage.com` in `.env.staging` (no bucket name on the end).
+8. Create two buckets: `jnr-private` and `jnr-public` (location: Western Europe). Put the names in `S3_BUCKET_PRIVATE` and `S3_BUCKET_PUBLIC`.
+9. `jnr-public` > Settings > **Public Development URL** > enable. Copy the `https://pub-....r2.dev` address into `PUBLIC_MEDIA_BASE_URL` (no trailing slash). Leave `jnr-private` with public access **off**.
+10. `jnr-private` > Settings > **CORS Policy** > Edit > paste the contents of `docs/r2-cors.json` (allows only `PUT` with `content-type`, only from the preview address).
+11. R2 > **Manage API tokens** > Create API token > permission **Object Read & Write**, restricted to those two buckets. Copy the **Access Key ID** and **Secret Access Key** into `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY`. (The secret is shown once.)
+
+**Buffer**
+12. Open the Buffer API key page (publish.buffer.com/settings/api), create or copy a key, and put it in `BUFFER_API_TOKEN`. `BUFFER_STAGING_CHANNEL_ID` is already filled in: it is your personal LinkedIn profile. Open item: the key saved in the earlier session was rejected as "not valid". Step 14 will say clearly whether this key works.
+
+**Vercel Preview variables (so the protected preview can use R2 and Buffer)**
+13. Vercel > project `jnr` > **Settings** > **Environment Variables** > add these with **only Preview ticked**, marking the secret ones **Sensitive**: `S3_ENDPOINT`, `S3_REGION` (`auto`), `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET_PRIVATE`, `S3_BUCKET_PUBLIC`, `PUBLIC_MEDIA_BASE_URL`, `BUFFER_API_TOKEN`, `BUFFER_ENV` (`staging`), `BUFFER_STAGING_CHANNEL_ID`, `SITE_URL`. (`DATABASE_URL` is already there from step 3.) Then push any change to the branch, or **Redeploy** the latest preview, so it picks them up.
+
+**Run the checks (in this order)**
+14. `npm run staging:check`: read-only. Every line should say PASS. A FAIL line says exactly what to fix.
+15. `npm run staging:e2e`: the whole flow with the website only (no Buffer): users, phone-style upload to R2, caption, approval, publish, public-image and leak checks, then cleans up.
+16. `npm run staging:e2e -- --confirm-draft`: the same plus **one draft** on your personal LinkedIn via Buffer, read back, with both images checked. Delete that draft in Buffer afterwards (its id is printed).
+17. Phone test on the protected preview (sign in to Vercel first): `https://jnr-git-feature-workshop-content-rhsys-projects.vercel.app/workshop`. Record a job with 2 to 3 photos. In `/admin`: tick the photos, tick LinkedIn, Generate caption, Approve, Publish. Check Buffer for one draft with the images, and `/our-work` on the preview for only the approved entry.
+
+### Go / no-go for the real-service tests
+| Run | Go when | If not |
+|---|---|---|
+| `staging:check` | Steps 1 to 13 are done. It is read-only (it writes two tiny files to R2 and deletes them) and creates nothing in Buffer. | A missing item is reported as a FAIL, nothing else happens. |
+| `staging:e2e` (no flag) | `staging:check` shows PASS for Postgres, row level security, private bucket is private, signed upload, CORS and public image URL. | Fix the FAIL it names first. |
+| `staging:e2e -- --confirm-draft` | The check also shows PASS for **Buffer API key** and **staging channel** (this is the open key item). | Do not run it. Re-create the Buffer key and repeat step 12. |
+Both scripts refuse to run unless `BUFFER_ENV=staging`, refuse if AI captions are on, only ever use the one staging channel, and can only create drafts.
 
 ## Tests
-- `npm test`: 130 tests (unit, security review, end-to-end flow with real Postgres and local fakes for storage and Buffer). Database tests need `TEST_DATABASE_URL=postgres://user@localhost:5432/postgres` (a throw-away database is created and dropped per file) and are skipped without it.
+- `npm test`: 136 tests (unit, security review, end-to-end flow with real Postgres and local fakes for storage and Buffer). Database tests need `TEST_DATABASE_URL=postgres://user@localhost:5432/postgres` (a throw-away database is created and dropped per file) and are skipped without it.
+- `npm run staging:selftest`: runs both staging scripts against local fakes (used to prove the scripts themselves work).
 - `npm run test:browser`: 12 Chromium tests (phone form, interrupted uploads, lost replies, session expiry, permissions, failed Buffer step and recovery, public pages and leak checks, CSP). Needs Playwright.
 - `node testlib/demo.js`: the whole site locally with fakes, to look at in a browser.
 - The fake storage re-checks every upload signature independently; the signer matches the worked example in AWS's Signature V4 documentation.
 
 ## Vercel preview verification (2026-11-15, branch previews, no database configured yet)
-- Pushing a branch **does** create a Vercel preview automatically (the `jnr` project is Git-connected; earlier branches did too). Previews live on `*.vercel.app`, and the project's Vercel Authentication covers all addresses except custom domains (`all_except_custom_domains`), so the previews with the admin system need a Vercel login. Your account has two-factor sign-in on.
+- Pushing a branch **does** create a Vercel preview automatically (the `jnr` project is Git-connected; earlier branches did too). Previews live on `*.vercel.app`, and the project's Vercel Authentication covers all addresses except custom domains (`all_except_custom_domains`), so the previews with the admin system need a Vercel login. The Vercel account has two-factor sign-in on.
 - The deployments built successfully. `/our-work`, `/api/feed` and `/sitemap-work.xml` are served by the new function through the rewrites, and degrade correctly with the database unconfigured: friendly 503 page, JSON, and empty XML, all `no-store`, no internals. `/workshop` serves with the security headers (CSP restricting uploads to R2, `X-Frame-Options: DENY`, `noindex`, `no-store`). `/api/admin/*` answers 401 from the function without a session (so `pg` and `sharp` load on Vercel).
 - Found and fixed on the preview: with no database, the feed and sitemap returned the Our Work HTML page (error handler ignored the requested format).
 - Not testable until you complete steps 1 to 4: anything that needs the database, R2 or Buffer on Vercel.
@@ -62,4 +90,4 @@ Checked on 2026-11-15 against https://developers.buffer.com/reference.html, the 
 - Read-back uses `post(input: PostInput!)` and `Post.assets` (the `Asset` interface: `type`, `mimeType`, `source`, `thumbnail`). Confirmed in the reference and by live introspection (`npm run buffer:check` passed against api.buffer.com).
 - Buffer always answers HTTP 200 with coded errors; rate limits and server errors are handled by code (and the live API was seen answering `UNAUTHENTICATED` with HTTP 401 for a bad key; both are handled).
 - Image URLs must be public, direct, https and permanent, and Buffer fetches them when the draft is created: the public copies are immutable and permanent.
-- **Not yet done:** the authenticated calls (create a real draft, read it back) from this build environment: the saved API key was rejected as "not valid", so the live draft test has to be run by you with step 6. The earlier manual draft with an image through the Buffer connector did save and read back correctly.
+- **Not yet done:** the authenticated calls (create a real draft, read it back) from this build environment: the saved API key was rejected as "not valid", so the live draft test is run by Rhys in steps 12 to 16. This stays an open item until `staging:check` shows PASS for the Buffer API key. The earlier manual draft with an image through the Buffer connector did save and read back correctly.

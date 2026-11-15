@@ -17,6 +17,11 @@ const pass = (n, d) => say('PASS', n, d); const fail = (n, d) => say('FAIL', n, 
 
 async function checkConfig() {
   const { getConfig } = require('../api/_lib/config');
+  if (!process.argv.includes('--selftest')) {
+    const l = require('./lib/staging-env').lint(process.env);
+    l.problems.forEach((m) => fail('environment', m)); l.warnings.forEach((m) => warn('environment', m));
+    if (!l.problems.length) pass('environment format', 'names present, formats look right');
+  }
   const c = getConfig();
   const need = { DATABASE_URL: c.databaseUrl, S3_ENDPOINT: c.storage.endpoint, S3_ACCESS_KEY_ID: c.storage.accessKeyId, S3_SECRET_ACCESS_KEY: c.storage.secretAccessKey, S3_BUCKET_PRIVATE: c.storage.privateBucket,
     S3_BUCKET_PUBLIC: c.storage.publicBucket, PUBLIC_MEDIA_BASE_URL: c.storage.publicBaseUrl, BUFFER_API_TOKEN: c.buffer.token };
