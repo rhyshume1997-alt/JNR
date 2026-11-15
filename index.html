@@ -132,6 +132,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="preload" href="/assets/jnr-head.otf" as="font" type="font/otf" crossorigin>
 <link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/assets/work.css">
 </head>
 
 <body>
@@ -251,6 +252,17 @@
       <div class="rv rv-d2" style="margin-top:40px;text-align:center">
         <a class="btn btn-ghost" href="/services"><span class="btn-roll"><span>See All Services</span><span aria-hidden="true">See All Services</span></span></a>
       </div>
+    </div>
+  </div>
+
+  <!-- RECENT WORK: filled from /api/feed with approved, published entries only. Stays hidden when there are none. -->
+  <div class="section work-feed" id="work-feed" hidden style="padding-top:20px">
+    <div class="section-inner">
+      <div class="work-feed-head">
+        <h2 class="sec-title">Recent<br><em style="font-style:normal;color:var(--blue-hi)">Work.</em></h2>
+        <a class="work-feed-link" href="/our-work">See all our work</a>
+      </div>
+      <div class="work-grid"></div>
     </div>
   </div>
 
@@ -377,6 +389,7 @@
 <script src="/assets/ScrollTrigger.min.js"></script>
 <script src="/assets/SplitText.min.js"></script>
 <script src="/assets/lenis.min.js"></script>
+<script src="/assets/work-feed.js" defer></script>
 <script src="/assets/site.js"></script>
 </body>
 </html>

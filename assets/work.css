@@ -1,0 +1,29 @@
+/* Our Work page, case studies and the homepage feed. Uses the site's existing colour tokens and fonts. */
+.work-h { font-family: var(--head); font-weight: 400; text-transform: uppercase; font-size: clamp(28px, 3.4vw, 42px); line-height: 1; margin: 56px 0 26px; color: var(--white); }
+.work-h:first-of-type { margin-top: 8px; }
+.work-empty { color: var(--txt-dim); font-size: 18px; padding: 30px 0 60px; }
+.work-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; }
+.work-card { background: var(--ink-2); border: 1px solid var(--line); display: grid; grid-template-rows: auto 1fr; min-width: 0; }
+.work-card.is-case { border-color: rgba(141,161,216,0.5); }
+.work-photo { aspect-ratio: 4 / 3; overflow: hidden; background: var(--ink-3); }
+.work-photo img { width: 100%; height: 100%; object-fit: cover; }
+.work-body { padding: 20px 22px 24px; display: flex; flex-direction: column; gap: 10px; }
+.work-meta { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--txt-faint); }
+.work-pill { background: var(--blue); color: #fff; padding: 3px 9px; letter-spacing: 0.1em; }
+.work-in_production .work-pill { background: #C7771B; }
+.work-stage { color: var(--blue-hi); }
+.work-body h3 { font-family: var(--head); font-weight: 400; text-transform: uppercase; font-size: 24px; line-height: 1.05; }
+.work-body h3 a { color: inherit; text-decoration: none; }
+.work-body h3 a:hover { text-decoration: underline; }
+.work-sum { color: var(--txt-dim); line-height: 1.65; font-size: 15.5px; }
+.work-spec { color: var(--blue-hi); font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.04em; }
+.work-more { margin-top: auto; padding-top: 6px; color: #fff; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
+.light-crumbs { color: var(--txt-faint); }
+.light-crumbs a { color: var(--blue-hi); }
+.work-gallery { display: grid; gap: 18px; margin-top: 28px; }
+.work-fig img { width: 100%; height: auto; background: var(--paper-2); }
+/* homepage feed */
+.work-feed-head { display: flex; justify-content: space-between; align-items: end; gap: 20px; flex-wrap: wrap; margin-bottom: 36px; }
+.work-feed .work-grid { grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); }
+.work-feed-link { color: #fff; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
+@media (max-width: 600px) { .work-grid { grid-template-columns: 1fr; } }
