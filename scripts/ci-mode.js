@@ -1,30 +1,26 @@
 'use strict';
-// Decides which staging run the GitHub Action should do. The mode comes either from the manual-run input or from the `mode:`
-// line of staging-run/request.txt (so a run can be requested by editing that one file in the browser).
-// Prints mode=<mode> (and writes it to $GITHUB_OUTPUT when running in Actions). Anything unrecognised is an error, never a guess.
-const fs = require('node:fs');
-const path = require('node:path');
+// Decides which staging run the GitHub Action should do, from the TAG that started it. The mode is part of the tag name and the
+// tag must point at the commit its name says, so a run cannot be redirected by editing any file. Code always comes from the
+// tagged commit, never from a branch.
+//   tag format:  staging-<mode>-<first 7 characters of the commit SHA>     e.g. staging-services-4373cab
+const MODES = ['services', 'check', 'e2e', 'e2e-draft'];
+const TAG = /^staging-(services|check|e2e-draft|e2e)-([0-9a-f]{7})$/;
 
-const MODES = ['none', 'services', 'check', 'e2e', 'e2e-draft'];
-
-function readMode(env, file) {
-  const fromInput = String(env.MODE_INPUT || '').trim();
-  let mode;
-  if (env.EVENT_NAME === 'workflow_dispatch') mode = fromInput || 'none';
-  else {
-    if (!fs.existsSync(file)) return 'none';
-    const m = fs.readFileSync(file, 'utf8').split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#')).map((l) => /^mode:\s*(.*)$/i.exec(l)).find(Boolean); // any text after "mode:" counts, so a typo is an error, not a silent no-op
-    mode = m ? m[1].trim().toLowerCase() : 'none';
-  }
-  if (!MODES.includes(mode)) throw new Error('Unknown mode "' + String(mode).slice(0, 30) + '". Use one of: ' + MODES.join(', ') + '.');
-  return mode;
+function readMode(env) {
+  if (env.GITHUB_REF_TYPE !== 'tag') throw new Error('Staging runs start only from an approved tag, never from a branch.');
+  const m = TAG.exec(String(env.GITHUB_REF_NAME || ''));
+  if (!m) throw new Error('The tag name must look like staging-<mode>-<7 character commit>, with mode one of: ' + MODES.join(', ') + '.');
+  const sha = String(env.GITHUB_SHA || '');
+  if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error('No commit SHA available.');
+  if (sha.slice(0, 7) !== m[2]) throw new Error('The tag name says commit ' + m[2] + ' but the tag points at ' + sha.slice(0, 7) + '. Refusing.');
+  return m[1];
 }
 
-module.exports = { readMode, MODES };
+module.exports = { readMode, MODES, TAG };
 if (require.main === module) {
   try {
-    const mode = readMode(process.env, path.join(__dirname, '..', 'staging-run', 'request.txt'));
+    const mode = readMode(process.env);
     console.log('mode=' + mode);
-    if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, 'mode=' + mode + '\n');
+    if (process.env.GITHUB_OUTPUT) require('node:fs').appendFileSync(process.env.GITHUB_OUTPUT, 'mode=' + mode + '\n');
   } catch (e) { console.error(e.message); process.exit(1); }
 }

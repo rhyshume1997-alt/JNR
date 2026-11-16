@@ -21,7 +21,8 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const sharp = require('sharp');
-const { assertStagingTarget, describeTargets, scrub } = require('./lib/guard');
+const { assertStagingTarget, describeTargets, scrub, installOutputScrubber } = require('./lib/guard');
+installOutputScrubber(process.env); // every line printed by this process, including stack traces, has hosts, users and keys removed
 
 const arg = (n) => { const a = process.argv.find((x) => x === n || x.startsWith(n + '=')); return a === undefined ? undefined : (a.includes('=') ? a.split('=')[1] : true); };
 const onlyArg = arg('--only');

@@ -54,4 +54,18 @@ function describeTargets(env) {
   ];
 }
 
-module.exports = { assertStagingTarget, describeTargets, scrub };
+// Makes EVERYTHING the process prints go through scrub(): the scripts' own lines, console.error from the application code they
+// run, uncaught errors and stack traces. Called first thing by the staging scripts.
+function installOutputScrubber(env) {
+  for (const stream of [process.stdout, process.stderr]) {
+    const write = stream.write.bind(stream);
+    stream.write = (chunk, encoding, cb) => {
+      const text = Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk);
+      return write(scrub(text, env), typeof encoding === 'function' ? encoding : encoding, cb);
+    };
+  }
+  const die = (e) => { console.error('Unexpected error: ' + String((e && e.message) || e).split('\n')[0]); process.exit(1); };
+  process.on('uncaughtException', die); process.on('unhandledRejection', die);
+}
+
+module.exports = { assertStagingTarget, describeTargets, scrub, installOutputScrubber };

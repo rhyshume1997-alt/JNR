@@ -25,7 +25,8 @@
 //   covers everything except the Buffer step. --selftest runs the whole script against local fakes.
 const crypto = require('node:crypto');
 const sharp = require('sharp');
-const { assertStagingTarget, describeTargets, scrub } = require('./lib/guard');
+const { assertStagingTarget, describeTargets, scrub, installOutputScrubber } = require('./lib/guard');
+installOutputScrubber(process.env); // every line printed by this process, including stack traces, has hosts, users and keys removed
 
 const rows = []; let failures = 0;
 const rec = (tag, name, detail) => { if (tag === 'FAIL') failures++; rows.push({ tag, name, detail }); console.log((tag + '    ').slice(0, 5) + ' ' + scrub(name + (detail ? '  -  ' + detail : ''), process.env)); };
@@ -169,4 +170,4 @@ async function main() {
   await require('../api/_lib/db').closePool().catch(() => {}); await cleanup();
   process.exit(failures ? 1 : 0);
 }
-main();
+main().catch((e) => { console.error('Unexpected error: ' + String((e && e.message) || e).split('\n')[0]); process.exit(1); });

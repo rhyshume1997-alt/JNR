@@ -7,9 +7,9 @@
     "node": "24.x"
   },
   "dependencies": {
-    "busboy": "^1.6.0",
-    "pg": "^8.23.1",
-    "sharp": "^0.34.5"
+    "busboy": "1.6.0",
+    "pg": "8.23.1",
+    "sharp": "0.35.5"
   },
   "scripts": {
     "test": "node --test",
@@ -23,6 +23,7 @@
     "migrate:staging": "node --env-file=.env.staging scripts/migrate.js",
     "admin:create": "node --env-file=.env.staging scripts/create-user.js",
     "staging:selftest": "node scripts/staging-check.js --selftest && node scripts/staging-e2e.js --selftest",
-    "staging:check:services": "node --env-file=.env.staging scripts/staging-check.js --skip-buffer"
+    "staging:check:services": "node --env-file=.env.staging scripts/staging-check.js --skip-buffer",
+    "premerge:check": "node scripts/premerge-check.js"
   }
 }
