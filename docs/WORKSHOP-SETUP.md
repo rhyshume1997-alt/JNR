@@ -31,6 +31,8 @@ Checked in the Vercel dashboard by Rhys: the team that owns the `jnr` project ("
 
 **Public image address.** For staging the public bucket uses R2's own address (`https://pub-....r2.dev`). That is fine for the tests, but Cloudflare rate-limits it and says it is not for production. R2 custom domains only work for a domain whose DNS is on Cloudflare, and `jnrengineering.co.uk` uses Namecheap DNS, so `media.jnrengineering.co.uk` is **not** available without moving DNS. Decide before go-live (not needed now): (a) a small separate domain on Cloudflare for media, (b) serve images through the JNR site at `/media/...` with a Vercel rewrite to the public bucket, which keeps a permanent address on the JNR domain, or (c) move JNR's DNS to Cloudflare. Buffer needs the URLs to be public, direct, https and permanent.
 
+> **No terminal available?** Use `docs/BROWSER-ONLY-SETUP.md`: the database tables from Neon's SQL editor, the first admin through a browser page, the checks as a GitHub Action, all marked by who can do each step. The steps below are the terminal version.
+
 ## Setup: exact steps, in order (about 30 minutes)
 Everything here is **staging**. Nothing touches the live JNR site, production variables, the `main` branch or any production data.
 Steps marked **[Rhys's account]** can only be done by Rhys: they need his Neon (via Vercel), Cloudflare, Buffer or Vercel login, or create a secret only he should hold. Everything else is copy-and-run.

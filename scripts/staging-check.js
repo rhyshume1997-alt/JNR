@@ -21,14 +21,14 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const sharp = require('sharp');
-const { assertStagingTarget, describeTargets } = require('./lib/guard');
+const { assertStagingTarget, describeTargets, scrub } = require('./lib/guard');
 
 const arg = (n) => { const a = process.argv.find((x) => x === n || x.startsWith(n + '=')); return a === undefined ? undefined : (a.includes('=') ? a.split('=')[1] : true); };
 const onlyArg = arg('--only');
 const parts = onlyArg && onlyArg !== true ? String(onlyArg).split(',').map((x) => x.trim()) : (onlyArg === true ? [process.argv[process.argv.indexOf('--only') + 1]] : null);
 const want = (part) => (parts ? parts.includes(part) : (part === 'buffer' ? !arg('--skip-buffer') : true));
 const lines = []; let failures = 0; const temp = { writes: [], deletedOk: 0, deleteFailed: [] };
-const say = (tag, name, detail) => { if (tag === 'FAIL') failures++; lines.push((tag + '    ').slice(0, 5) + ' ' + name + (detail ? '  -  ' + detail : '')); console.log(lines[lines.length - 1]); };
+const say = (tag, name, detail) => { if (tag === 'FAIL') failures++; lines.push((tag + '    ').slice(0, 5) + ' ' + scrub(name + (detail ? '  -  ' + detail : ''), process.env)); console.log(lines[lines.length - 1]); };
 const skip = (n, d) => say('SKIP', n, d);
 const pass = (n, d) => say('PASS', n, d); const fail = (n, d) => say('FAIL', n, d); const warn = (n, d) => say('WARN', n, d);
 

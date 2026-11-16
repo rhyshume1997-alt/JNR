@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Create the first administrator | J.N.R. Engineering</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<header class="bar"><h1>First administrator</h1></header>
+<main>
+  <p class="notice warn">Rhys types the password here himself. It is turned into a one-way hash inside this browser tab and is never sent anywhere. Nobody else should see it, and it must not be typed into a chat.</p>
+  <div class="card">
+    <label for="email">Email</label><input type="email" id="email" autocomplete="off"><div class="err" id="email-err" role="alert"></div>
+    <label for="name">Name</label><input type="text" id="name" autocomplete="off"><div class="err" id="name-err" role="alert"></div>
+    <label for="pw">Password (at least 14 characters)</label><input type="password" id="pw" autocomplete="new-password"><div class="err" id="pw-err" role="alert"></div>
+    <label for="pw2">Password again</label><input type="password" id="pw2" autocomplete="new-password"><div class="err" id="pw2-err" role="alert"></div>
+    <button id="make" class="big" type="button">Make the SQL</button>
+  </div>
+  <div id="result" class="card hidden">
+    <h3>Next</h3>
+    <ol>
+      <li>Press <strong>Copy SQL</strong>.</li>
+      <li>Open the Neon SQL editor for this database, paste, and press <strong>Run</strong>. It should say 1 row affected.</li>
+      <li>Close this page. Then sign in at <a href="/admin">/admin</a> with the email and password you just chose.</li>
+    </ol>
+    <p class="hint">The SQL holds a salted, slow hash, not the password. It only creates the user if there are no users yet. Do not paste it into chat or email.</p>
+    <textarea id="sql" readonly rows="7" aria-label="SQL to run"></textarea>
+    <div class="row"><button id="copy" type="button">Copy SQL</button><span id="copied" role="status"></span></div>
+  </div>
+</main>
+<script src="/assets/pbkdf2-hash.js"></script>
+<script src="/assets/first-admin.js"></script>
+</body>
+</html>

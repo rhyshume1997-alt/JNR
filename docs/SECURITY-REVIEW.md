@@ -52,6 +52,10 @@ Reviewed 2026-11-15 on branch `feature/workshop-content`. Scope: authentication,
 ## Buffer cannot publish or schedule
 `assertDraftOnly` runs before every request and refuses `saveToDraft: false`, any `dueAt`, and any `mode` other than `addToQueue` (`buffer.guard.test.js`). Staging can only target `BUFFER_STAGING_CHANNEL_ID`; production refuses to run without `BUFFER_CHANNEL_ID_LINKEDIN`. Buffer's own documentation says drafts are not published "until explicitly scheduled" and skip posting-limit checks.
 
+## First administrator without a terminal, and the GitHub Action
+- **First admin:** a static page (`/admin/first-admin`) hashes the password in the person's own browser (PBKDF2-SHA256, 600,000 rounds) and produces SQL that creates the user only if there are no users yet. No server route is added, no bootstrap token exists, and the page makes no network request (browser-tested). The server accepts that hash format and replaces it with scrypt at the first sign-in. The page is removed from the branch before any merge.
+- **GitHub Action:** triggers only on the feature branch when `staging-run/request.txt` is edited (or manually), never on pull requests or forks; read-only token; secrets live in a `staging` environment that needs Rhys's approval and only in the final step; `npm ci --ignore-scripts`; hosts, ids and keys are scrubbed from every printed line because the repository is public. Pinned by `test/ci-workflow.test.js`.
+
 ## Staging scripts
 Refuse to run unless explicitly staging (`DEPLOY_ENV`, `BUFFER_ENV`, bucket names containing "staging", no prod-looking database address, no production `VERCEL_ENV`), never call Vercel, only delete rows and objects they created themselves, and use synthetic photographs only. The Buffer test draft is deleted (and confirmed gone) before its images, and only if it is an unscheduled draft on the staging channel carrying the run's unique marker. All pinned by `test/staging-safety.test.js`.
 

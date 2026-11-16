@@ -25,10 +25,10 @@
 //   covers everything except the Buffer step. --selftest runs the whole script against local fakes.
 const crypto = require('node:crypto');
 const sharp = require('sharp');
-const { assertStagingTarget, describeTargets } = require('./lib/guard');
+const { assertStagingTarget, describeTargets, scrub } = require('./lib/guard');
 
 const rows = []; let failures = 0;
-const rec = (tag, name, detail) => { if (tag === 'FAIL') failures++; rows.push({ tag, name, detail }); console.log((tag + '    ').slice(0, 5) + ' ' + name + (detail ? '  -  ' + detail : '')); };
+const rec = (tag, name, detail) => { if (tag === 'FAIL') failures++; rows.push({ tag, name, detail }); console.log((tag + '    ').slice(0, 5) + ' ' + scrub(name + (detail ? '  -  ' + detail : ''), process.env)); };
 const check = (cond, name, detail) => rec(cond ? 'PASS' : 'FAIL', name, cond ? undefined : detail);
 
 async function run(opts) {
@@ -137,7 +137,7 @@ async function run(opts) {
       if (keepMedia) {
         rec('WARN', 'public photos KEPT so the remaining draft still shows its images', 'bucket ' + cfg.storage.publicBucket + ', prefix public/' + ids.entry + '/');
         for (const k of ids.privateKeys) await storage.del('privateBucket', k).catch(() => {});
-        console.log('\nTO FINISH CLEANING UP BY HAND:\n  1. In Buffer, delete the draft ' + (ids.draftId ? '(post id ' + ids.draftId + ') ' : 'whose text contains "' + ids.draftMarker + '" ') + 'on your personal LinkedIn channel.\n  2. Then in Cloudflare R2, bucket ' + cfg.storage.publicBucket + ', delete the folder public/' + ids.entry + '/ (the staging bucket only holds test photographs).');
+        console.log(scrub('\nTO FINISH CLEANING UP BY HAND:\n  1. In Buffer, delete the draft ' + (ids.draftId ? '(post id ' + ids.draftId + ') ' : 'whose text contains "' + ids.draftMarker + '" ') + 'on your personal LinkedIn channel.\n  2. Then in Cloudflare R2, bucket ' + cfg.storage.publicBucket + ', delete the folder public/' + ids.entry + '/ (the staging bucket only holds test photographs).', process.env));
       } else {
         for (const k of ids.privateKeys) await storage.del('privateBucket', k).catch(() => {});
         for (const k of ids.publicKeys) await storage.del('publicBucket', k).catch(() => {});

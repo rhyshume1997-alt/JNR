@@ -22,7 +22,8 @@ async function startSite(port, opts) {
     if (p.startsWith('/api/admin')) return admin(req, res);
     if (p.startsWith('/our-work') || p === '/api/feed' || p === '/sitemap-work.xml') return pub(req, res);
     let f = p === '/' ? '/index.html' : p;
-    if (!path.extname(f)) f = (f.endsWith('/') ? f : f + '/') + 'index.html';
+    // Like Vercel's cleanUrls: /name serves name.html, /dir/ serves dir/index.html
+    if (!path.extname(f)) f = !f.endsWith('/') && fs.existsSync(path.join(root, f + '.html')) ? f + '.html' : (f.endsWith('/') ? f : f + '/') + 'index.html';
     const full = path.join(root, f);
     if (!full.startsWith(root) || !fs.existsSync(full)) { res.writeHead(404); return res.end('not found'); }
     const h = { 'content-type': types[path.extname(full)] || 'application/octet-stream' };

@@ -1,0 +1,88 @@
+# Runs the STAGING checks from GitHub, so nothing has to be installed or run on a laptop.
+#   - Only for the feature/workshop-content branch, only when staging-run/request.txt is edited (or a manual run).
+#   - Never on pull requests, forks, schedules or comments. Secrets are held in the "staging" environment, which asks Rhys
+#     to approve every run, so a run cannot start by itself.
+#   - Staging only: the scripts refuse to run against anything that is not staging, and never contact Vercel.
+#   - Cost: this repository is public, so standard GitHub-hosted runners are free. A run takes about 1 to 3 minutes.
+#   - The repository is public, so run logs are public too. The scripts print no secrets and shorten hosts and ids in CI.
+name: Staging checks
+
+on:
+  push:
+    branches: [feature/workshop-content]
+    paths: ['staging-run/request.txt']
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: What to run
+        type: choice
+        default: services
+        options: [services, check, e2e, e2e-draft]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-checks
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Decide what to run
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      mode: ${{ steps.mode.outputs.mode }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: mode
+        run: node scripts/ci-mode.js
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MODE_INPUT: ${{ inputs.mode }}
+
+  run:
+    name: Staging ${{ needs.plan.outputs.mode }}
+    needs: plan
+    if: needs.plan.outputs.mode != 'none' && github.ref == 'refs/heads/feature/workshop-content'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies (no install scripts)
+        run: npm ci --ignore-scripts
+      - name: Run the selected staging check
+        # Secrets are given to this one step only, never to the setup steps above.
+        run: |
+          case "$MODE" in
+            services)  node scripts/staging-check.js --skip-buffer ;;
+            check)     node scripts/staging-check.js ;;
+            e2e)       node scripts/staging-e2e.js ;;
+            e2e-draft) node scripts/staging-e2e.js --confirm-draft ;;
+            *) echo "Unknown mode"; exit 1 ;;
+          esac
+        env:
+          MODE: ${{ needs.plan.outputs.mode }}
+          DEPLOY_ENV: staging
+          BUFFER_ENV: staging
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_REGION: auto
+          S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          S3_BUCKET_PRIVATE: ${{ vars.S3_BUCKET_PRIVATE }}
+          S3_BUCKET_PUBLIC: ${{ vars.S3_BUCKET_PUBLIC }}
+          PUBLIC_MEDIA_BASE_URL: ${{ vars.PUBLIC_MEDIA_BASE_URL }}
+          BUFFER_API_TOKEN: ${{ secrets.BUFFER_API_TOKEN }}
+          BUFFER_STAGING_CHANNEL_ID: ${{ vars.BUFFER_STAGING_CHANNEL_ID }}
+          STAGING_ORIGIN: ${{ vars.STAGING_ORIGIN }}
+          SITE_URL: ${{ vars.STAGING_ORIGIN }}

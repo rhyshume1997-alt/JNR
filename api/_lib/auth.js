@@ -24,8 +24,21 @@ async function hashPassword(password) {
   return ['scrypt', SCRYPT.N, SCRYPT.r, SCRYPT.p, salt.toString('base64'), key.toString('base64')].join('$');
 }
 
+function pbkdf2Async(pw, salt, iterations) {
+  return new Promise((resolve, reject) => crypto.pbkdf2(pw, salt, iterations, 32, 'sha256', (e, k) => (e ? reject(e) : resolve(k))));
+}
+
 async function verifyPassword(password, stored) {
   const parts = String(stored || '').split('$');
+  // pbkdf2$<iterations>$<salt>$<hash>: made in a browser by admin/first-admin so the very first admin can be created
+  // without a terminal. Replaced by a scrypt hash on the first successful sign-in (see login()).
+  if (parts[0] === 'pbkdf2' && parts.length === 4) {
+    const iterations = Number(parts[1]);
+    if (!Number.isInteger(iterations) || iterations < 100000 || iterations > 5000000) return false;
+    const key = await pbkdf2Async(password, Buffer.from(parts[2], 'base64'), iterations);
+    const expected = Buffer.from(parts[3], 'base64');
+    return key.length === expected.length && crypto.timingSafeEqual(key, expected);
+  }
   if (parts[0] !== 'scrypt' || parts.length !== 6) return false;
   const opts = { N: Number(parts[1]), r: Number(parts[2]), p: Number(parts[3]), keylen: 64 };
   const key = await scryptAsync(password, Buffer.from(parts[4], 'base64'), opts);
@@ -88,6 +101,7 @@ async function login(email, password, ip, userAgent) {
     throw generic;
   }
   await query('update users set failed_attempts = 0, locked_until = null where id = $1', [user.id]);
+  if (/^pbkdf2\$/.test(user.password_hash)) await query('update users set password_hash = $2 where id = $1', [user.id, await hashPassword(password)]); // upgrade to scrypt
   await query('delete from sessions where expires_at < now()');
   const token = crypto.randomBytes(32).toString('base64url');
   const hours = getConfig().sessionHours;
