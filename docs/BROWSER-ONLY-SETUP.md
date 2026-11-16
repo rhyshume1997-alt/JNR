@@ -11,13 +11,10 @@ Already done: Vercel Pro confirmed; Neon database connected (Preview only, Londo
 3. **[CLAUDE]** Expect success with no rows. If it says "JNR setup has already been run... Nothing was changed", it was already done; carry on.
 4. **[CLAUDE]** Check: run `select count(*) filter (where relrowsecurity) as rls_on, count(*) as tables from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r';` Expect `8` and `8`.
 
-## 2. Create the first administrator (no scripts, password never in chat)
-Chosen because it adds **no new server route**: a one-time route would need a bootstrap token and a public sign-up endpoint. Instead a static page hashes the password inside Rhys's own browser tab (PBKDF2, 600,000 rounds), makes no network request, and gives SQL that holds only the salted hash. The server accepts that hash and replaces it with its stronger scrypt hash at the first sign-in. The SQL only creates a user if there are no users yet, so pasting it twice or later does nothing.
-5. **[RHYS]** In a browser signed in to Vercel, open `https://jnr-git-feature-workshop-content-rhsys-projects.vercel.app/admin/first-admin` (wait for the latest preview to finish building).
-6. **[RHYS types, Claude must not read or type this]** Email, name, a password of 14+ characters (a few random words), the same password again. Press **Make the SQL**. The password boxes clear themselves.
-7. **[CLAUDE]** Press **Copy SQL** (the page never needs to be read), open the Neon SQL editor, paste, **Run**. Expect `INSERT 0 1`.
-8. **[RHYS]** Open `/admin` on the preview and sign in with the email and password just chosen. Done. Close the first-admin page.
-Note: Neon keeps a query history containing the salted hash (not the password). You can delete that history entry. **Before any merge** this page (`admin/first-admin.html`, `assets/first-admin.js`, `assets/pbkdf2-hash.js`) is removed from the branch, and `npm run premerge:check` fails until it is. Tell Claude Code as soon as the admin can sign in so it can remove the page (that makes a new commit, so a new reviewed SHA).
+## 2. First administrator: DONE
+Created in Neon with a hash-only SQL insert (the password never left Rhys's browser tab and was never in chat), and Rhys confirmed he can sign in at `/admin`. The temporary page that made the hash has been **removed from the branch** (it exists only in git history, commit `6fdbcd2`); `npm run premerge:check` now passes and fails again if it is ever put back.
+5-8. (done; step numbers kept so later steps keep their numbers)
+Why it was safe: no server route was added, nothing ever received the password, and the SQL held only a salted PBKDF2 hash. The server accepts that hash format and replaces it with its scrypt hash at the first sign-in. To confirm in Neon that the replacement happened, run `select email, role, split_part(password_hash, '$', 1) as hash_format from users;` and expect `scrypt`. If another administrator is ever needed on an empty database, ask Claude Code to restore the page from commit `6fdbcd2` for that purpose, or use `npm run admin:create` where a terminal exists.
 
 ## 3. Run staging:check and staging:e2e from GitHub, safely
 A GitHub Action (`.github/workflows/staging-checks.yml`) runs the same scripts. **Cost: none** (the repo is public, so standard runners are free; a run takes 1 to 3 minutes).

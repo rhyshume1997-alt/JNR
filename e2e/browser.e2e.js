@@ -74,35 +74,6 @@ describe('browser tests', { skip: SKIP }, () => {
     });
   });
 
-  describe('first administrator page (browser-only setup)', () => {
-    it('hashes the password inside the tab, sends it nowhere, clears it, and gives SQL that does not contain it', async () => {
-      const c = await browser.newContext({ viewport: { width: 1000, height: 900 }, permissions: ['clipboard-read', 'clipboard-write'] });
-      await c.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-      const p = await page(c, 'first-admin'); const reqs = [];
-      p.on('request', (r) => reqs.push(r.method() + ' ' + new URL(r.url()).pathname));
-      const SECRET = 'purple tractor wins every tuesday';
-      await p.goto(site.origin + '/admin/first-admin', { waitUntil: 'domcontentloaded' });
-      await p.click('#make'); // empty form: refused with messages
-      assert.match(await p.locator('#email-err').innerText(), /valid email/); assert.match(await p.locator('#pw-err').innerText(), /at least 14/);
-      assert.ok(await p.locator('#result').evaluate((e) => e.classList.contains('hidden')));
-      await p.fill('#email', 'first@jnr.test'); await p.fill('#name', "Rhys O'Hume"); await p.fill('#pw', SECRET); await p.fill('#pw2', SECRET + 'x');
-      await p.click('#make'); assert.match(await p.locator('#pw2-err').innerText(), /do not match/);
-      await p.fill('#pw2', SECRET); await p.click('#make');
-      await p.waitForFunction(() => document.getElementById('sql').value.length > 0, null, { timeout: 15000 });
-      const sql = await p.inputValue('#sql');
-      assert.match(sql, /insert into users \(email, name, role, password_hash\)/); assert.match(sql, /'Rhys O''Hume'/); assert.match(sql, /'pbkdf2\$600000\$/); assert.match(sql, /where not exists \(select 1 from users\)/);
-      assert.ok(!sql.includes(SECRET), 'the SQL does not contain the password');
-      assert.strictEqual(await p.inputValue('#pw'), ''); assert.strictEqual(await p.inputValue('#pw2'), '', 'password fields are cleared');
-      await p.click('#copy'); await p.waitForFunction(() => /Copied/.test(document.getElementById('copied').textContent));
-      assert.strictEqual(await p.evaluate(() => navigator.clipboard.readText()), sql, 'Copy puts exactly the SQL on the clipboard');
-      assert.ok(reqs.every((r) => r.startsWith('GET ')), 'no POST or other write: ' + reqs.join(', '));
-      assert.ok(!reqs.some((r) => r.includes('/api/')), 'no API call at all: ' + reqs.join(', '));
-      // the SQL really works: run it on a throw-away copy of the schema and sign in with the password
-      assert.ok(!(await p.content()).includes(SECRET), 'the password is not left anywhere in the page');
-      await c.close();
-    });
-  });
-
   describe('phone form', () => {
     it('records a job with photos on a phone-sized screen, with no sideways scrolling', async () => {
       const c = await ctx('phone'); const p = await page(c, 'phone');

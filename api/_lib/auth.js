@@ -30,8 +30,8 @@ function pbkdf2Async(pw, salt, iterations) {
 
 async function verifyPassword(password, stored) {
   const parts = String(stored || '').split('$');
-  // pbkdf2$<iterations>$<salt>$<hash>: made in a browser by admin/first-admin so the very first admin can be created
-  // without a terminal. Replaced by a scrypt hash on the first successful sign-in (see login()).
+  // pbkdf2$<iterations>$<salt>$<hash>: a hash that can be made without this server's code (WebCrypto or any PBKDF2 tool), so an
+  // administrator can be created or reset with plain SQL. Replaced by a scrypt hash on the first successful sign-in (see login()).
   if (parts[0] === 'pbkdf2' && parts.length === 4) {
     const iterations = Number(parts[1]);
     if (!Number.isInteger(iterations) || iterations < 100000 || iterations > 5000000) return false;

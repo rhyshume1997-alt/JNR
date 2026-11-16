@@ -1,6 +1,6 @@
 'use strict';
-// The browser-only setup path: db/browser-setup.sql must build exactly the same database as `npm run migrate`, and the
-// first-admin hash made in a browser must sign in.
+// The browser-only setup path: db/browser-setup.sql must build exactly the same database as `npm run migrate`, and an
+// administrator created with plain SQL (pbkdf2 hash) must sign in and be upgraded to scrypt.
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
 const crypto = require('node:crypto');
@@ -80,50 +80,35 @@ describe('browser-setup.sql against real Postgres', { skip: SKIP }, () => {
   });
 });
 
-describe('first administrator made in a browser', () => {
-  const Hash = require('../assets/pbkdf2-hash');
+describe('an administrator created or reset with plain SQL (pbkdf2 hash accepted, upgraded to scrypt)', () => {
   const { verifyPassword } = require('../api/_lib/auth');
   const PW = 'purple tractor wins every tuesday';
+  // Same format a browser (WebCrypto) or any PBKDF2 tool can produce: pbkdf2$<iterations>$<salt b64>$<hash b64>
+  const make = (pw, iterations) => { const salt = crypto.randomBytes(16); return 'pbkdf2$' + iterations + '$' + salt.toString('base64') + '$' + crypto.pbkdf2Sync(pw, salt, iterations, 32, 'sha256').toString('base64'); };
 
-  it('makes a PBKDF2 hash with the OWASP cost that the server verifies, and rejects a wrong password', async () => {
-    const h = await Hash.hashPassword(PW);
-    assert.match(h, /^pbkdf2\$600000\$[A-Za-z0-9+/=]{24}\$[A-Za-z0-9+/=]{44}$/);
-    assert.ok(!h.includes(PW));
+  it('verifies a PBKDF2 hash with the OWASP cost and rejects a wrong password', async () => {
+    const h = make(PW, 600000);
     assert.strictEqual(await verifyPassword(PW, h), true);
     assert.strictEqual(await verifyPassword(PW + 'x', h), false);
-    assert.notStrictEqual(h, await Hash.hashPassword(PW), 'each hash has its own random salt');
   });
   it('refuses a stored hash with an absurd or too-small cost', async () => {
     assert.strictEqual(await verifyPassword(PW, 'pbkdf2$1$AAAA$AAAA'), false);
     assert.strictEqual(await verifyPassword(PW, 'pbkdf2$999999999$AAAA$AAAA'), false);
   });
-  it('checks the form inputs and escapes quotes in the SQL', () => {
-    assert.deepStrictEqual(Hash.checkInputs('rhys@example.com', 'Rhys', PW, PW), {});
-    const e = Hash.checkInputs('not-an-email', '', 'short', 'different');
-    assert.ok(e.email && e.name && e.password && e.confirm);
-    assert.ok(Hash.checkInputs("a'b@x.com", 'N', PW, PW).email, 'quote in the email is refused');
-    const sql = Hash.buildSql('rhys@example.com', "O'Neil", 'pbkdf2$600000$c2FsdA==$aGFzaA==');
-    assert.match(sql, /'O''Neil'/); assert.match(sql, /where not exists \(select 1 from users\)/); assert.match(sql, /'admin'/);
-  });
-});
-
-describe('first administrator in the database', { skip: SKIP }, () => {
-  let db, s3, buf, app; const PW = 'purple tractor wins every tuesday';
-  before(async () => { db = await H.createTestDb(); s3 = await H.startFakeS3(); buf = await H.startFakeBuffer(); H.setEnv(s3, buf); app = await H.startApp(); });
-  after(async () => { await app.close(); await s3.close(); await buf.close(); await db.drop(); });
-
-  it('the pasted SQL creates one admin who can sign in, and only when there are no users', async () => {
-    const Hash = require('../assets/pbkdf2-hash'); const { query } = require('../api/_lib/db');
-    const sql = Hash.buildSql('first@jnr.test', 'First Admin', await Hash.hashPassword(PW));
-    await query(sql);
-    assert.deepStrictEqual((await query('select email, name, role from users')).rows, [{ email: 'first@jnr.test', name: 'First Admin', role: 'admin' }]);
-    await query(sql); await query(Hash.buildSql('second@jnr.test', 'Second', await Hash.hashPassword(PW)));
-    assert.strictEqual((await query('select count(*)::int n from users')).rows[0].n, 1, 'pasting twice, or later, creates nothing more');
-    const c = app.client();
-    assert.strictEqual((await c.login('first@jnr.test', 'wrong password at all')).status, 401);
-    const ok = await c.login('first@jnr.test', PW);
-    assert.strictEqual(ok.status, 200); assert.strictEqual(ok.data.user.role, 'admin');
-    assert.match((await query("select password_hash from users where email = 'first@jnr.test'")).rows[0].password_hash, /^scrypt\$65536\$/, 'upgraded to scrypt on first sign-in');
-    assert.strictEqual((await app.client().login('first@jnr.test', PW)).status, 200, 'and still signs in afterwards');
+  describe('in the database', { skip: SKIP }, () => {
+    let db, s3, buf, app;
+    before(async () => { db = await H.createTestDb(); s3 = await H.startFakeS3(); buf = await H.startFakeBuffer(); H.setEnv(s3, buf); app = await H.startApp(); });
+    after(async () => { await app.close(); await s3.close(); await buf.close(); await db.drop(); });
+    it('signs in with a pbkdf2 hash and replaces it with scrypt at the first sign-in', async () => {
+      const { query } = require('../api/_lib/db');
+      await query("insert into users (email, name, role, password_hash) values ('first@jnr.test', 'First Admin', 'admin', $1)", [make(PW, 600000)]);
+      const c = app.client();
+      assert.strictEqual((await c.login('first@jnr.test', 'wrong password at all')).status, 401);
+      assert.match((await query("select password_hash from users where email = 'first@jnr.test'")).rows[0].password_hash, /^pbkdf2\$/, 'a failed sign-in does not change the hash');
+      const ok = await c.login('first@jnr.test', PW);
+      assert.strictEqual(ok.status, 200); assert.strictEqual(ok.data.user.role, 'admin');
+      assert.match((await query("select password_hash from users where email = 'first@jnr.test'")).rows[0].password_hash, /^scrypt\$65536\$/, 'upgraded to scrypt');
+      assert.strictEqual((await app.client().login('first@jnr.test', PW)).status, 200, 'and still signs in afterwards');
+    });
   });
 });
