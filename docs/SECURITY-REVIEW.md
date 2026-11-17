@@ -92,9 +92,9 @@ Refuse to run unless explicitly staging (`DEPLOY_ENV`, `BUFFER_ENV`, bucket name
 10. The database connection skipped TLS certificate verification for remote hosts -> now verified by default (Neon uses a public CA); `DATABASE_SSL_VERIFY=false` is an explicit opt-out for hosts with a private CA.
 
 11. Preview test (17 Nov): the Published banner claimed a LinkedIn draft when LinkedIn was not selected; failed uploads left blocking rows and used the photo limit; list and feed image sizes did not match portrait pictures; removing a photo left the original in storage; the staging e2e script left small public copies -> all fixed with regression tests (`test/preview-findings.test.js`, two browser tests).
+12. The purchase-order check treated any word starting with "po" plus three letters as a PO number, so "Powder", "Polished", "Portable", "Position" and "Pocket" were blocked at approval -> the PO must now be a word of its own and its reference must be 3+ characters containing a digit (PO 12345, PO12345, PO#12345, PO: AB-1234, PO number 12345, P.O. 12345, Purchase order 12345 are still blocked); `test/confidential.test.js`. A PO reference with no digit at all is no longer recognised; the customer name, job reference, email and telephone checks are unchanged.
 
 ## Still open
-- The purchase-order check treats any word starting with "po" followed by three or more letters as a PO number ("Powder", "Polished", "Portable", "Position" are blocked at approval). Over-blocking only, nothing leaks. Found by a test title; awaiting a decision.
 - Two-factor sign-in and password reset emails.
 - `connect-src` is tied to R2; change it in `vercel.json` if you use another store.
 - Buffer's authenticated API could not be exercised from the build environment (see `WORKSHOP-SETUP.md`).
