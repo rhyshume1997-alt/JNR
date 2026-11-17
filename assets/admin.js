@@ -157,7 +157,7 @@
       btn('Reject', 'danger', async function () { var note = prompt('What needs changing?'); if (note) await act(function () { return call('POST', '/entries/' + id + '/reject', { note: note }); }, 'Rejected.'); });
     }
     if (isEditor() && ['approved', 'failed'].indexOf(e.status) >= 0) btn(e.status === 'failed' ? 'Retry publishing' : 'Publish', '', async function () {
-      try { var r = await call('POST', '/entries/' + id + '/publish'); await showEntry(id, { kind: r.status === 'published' ? 'ok' : 'warn', text: r.status === 'published' ? 'Published. LinkedIn: draft saved and verified in Buffer. Nothing was posted.' : 'Some destinations did not finish. See below.' }); } catch (er) { handleErr(er, say, id); }
+      try { var r = await call('POST', '/entries/' + id + '/publish'); await showEntry(id, JNR.publishSummary(r)); } catch (er) { handleErr(er, say, id); }
     });
     if (isAdmin() && e.is_live) btn('Take off the website', 'danger', function () { if (confirm('Remove this from the public site?')) act(function () { return call('POST', '/entries/' + id + '/unpublish'); }, 'Taken off the website.'); });
     btn('Back to list', 'ghost', showList);

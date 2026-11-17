@@ -54,24 +54,47 @@
     });
   }
 
-  // Full photo flow: ask for a link, upload, ask the server to check it. Retries on poor signal.
+  // Full photo flow: ask for a link, upload, ask the server to check it. Retries on poor signal. If it finally fails, the unfinished
+  // upload is removed again (best effort; the server also clears abandoned ones), so a failed photo never blocks or counts.
   async function uploadPhoto(entryId, file, onProgress) {
-    var lastErr;
+    var lastErr, lastImageId = null, outcomeUnknown = false;
     for (var attempt = 0; attempt < 3; attempt++) {
-      var imageId = null;
+      var finalizing = false;
       try {
         var p = await call('POST', '/entries/' + entryId + '/images/presign', { name: file.name, type: file.type, size: file.size });
-        imageId = p.image_id;
+        lastImageId = p.image_id;
         await putFile(p.upload, file, onProgress);
-        var f = await call('POST', '/images/' + imageId + '/finalize');
+        finalizing = true;
+        var f = await call('POST', '/images/' + p.image_id + '/finalize');
         return f.image;
       } catch (e) {
         lastErr = e;
-        if (e.status && e.status >= 400 && e.status < 500 && e.status !== 409 && e.status !== 429) throw e; // a real "no": do not retry
-        await sleep(800 * Math.pow(2, attempt));
+        // No reply to "finalize", or a gateway error from it, means the photo may have been accepted: never remove it then.
+        outcomeUnknown = finalizing && (!e.status || e.status >= 500);
+        if (e.status && e.status >= 400 && e.status < 500 && e.status !== 409 && e.status !== 429) break; // a real "no": do not retry
+        if (attempt < 2) await sleep(800 * Math.pow(2, attempt));
       }
     }
+    if (lastImageId && !outcomeUnknown) { try { await call('DELETE', '/images/' + lastImageId); } catch (_) { /* the server clears abandoned uploads itself */ } }
     throw lastErr;
+  }
+
+  // What the office is told after "Publish": only destinations that were really chosen, each with what actually happened.
+  function publishSummary(r) {
+    var res = (r && r.results) || [];
+    var by = {};
+    res.forEach(function (x) { by[x.destination] = x; });
+    function line(name, x, verifiedText, notSelectedText) {
+      if (!x) return notSelectedText;
+      if (x.status === 'verified') return verifiedText;
+      if (x.status === 'saved') return name + ': saved in Buffer as a draft, but it could not be checked yet. Look at it in Buffer before relying on it.';
+      if (x.status === 'uncertain') return name + ': not sure whether the draft reached Buffer. Check Buffer before trying again.';
+      return name + ': did not finish' + (x.error ? ' (' + x.error + ')' : '') + '.';
+    }
+    var web = line('Website', by.website, 'Website: published.', 'Website: not selected.');
+    var li = line('LinkedIn', by.linkedin, 'LinkedIn: draft saved in Buffer and checked. Nothing was posted.', 'LinkedIn: not selected, nothing was sent to Buffer.');
+    var ok = r && r.status === 'published';
+    return { kind: ok ? 'ok' : 'warn', text: (ok ? 'Published. ' : 'Not everything finished. ') + web + ' ' + li };
   }
 
   function uuid() { return (crypto.randomUUID ? crypto.randomUUID() : 'k' + Date.now() + Math.random().toString(16).slice(2)); }
@@ -89,5 +112,5 @@
     return form;
   }
 
-  window.JNR = { h: h, call: call, uploadPhoto: uploadPhoto, uuid: uuid, loginForm: loginForm, sleep: sleep };
+  window.JNR = { h: h, call: call, uploadPhoto: uploadPhoto, publishSummary: publishSummary, uuid: uuid, loginForm: loginForm, sleep: sleep };
 })();

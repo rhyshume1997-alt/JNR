@@ -77,7 +77,8 @@ async function run(opts) {
     const ap = await editor.post('/entries/' + ids.entry + '/approve', {});
     check(ap.status === 200, 'editor approves', JSON.stringify(ap.data));
     const snap = (await query('select approved_snapshot s from entries where id = $1', [ids.entry])).rows[0].s;
-    snap.images.forEach((i) => { ids.publicKeys.push(decodeURIComponent(i.url.slice(cfg.storage.publicBaseUrl.length + 1))); });
+    // Both public copies of every photo: the large one and the small one used on the list page and in the feed.
+    snap.images.forEach((i) => { [i.url, i.thumb_url].forEach((u) => { if (u) ids.publicKeys.push(decodeURIComponent(u.slice(cfg.storage.publicBaseUrl.length + 1))); }); });
 
     const pub = await editor.post('/entries/' + ids.entry + '/publish');
     if (!opts.draft) {
@@ -134,6 +135,17 @@ async function run(opts) {
       keepMedia = true;
       rec('WARN', 'a draft may exist in Buffer but its id is unknown (the reply was lost or the step failed)', 'search Buffer for the text "' + ids.draftMarker + '"');
     }
+    // The database is the authority on what this run stored: add every key it recorded, whatever the steps above managed to note.
+    try {
+      if (ids.entry) {
+        (await query('select original_key, public_key, public_thumb_key from entry_images where entry_id = $1', [ids.entry])).rows.forEach((r) => {
+          if (r.original_key) ids.privateKeys.push(r.original_key);
+          if (r.public_key) ids.publicKeys.push(r.public_key);
+          if (r.public_thumb_key) ids.publicKeys.push(r.public_thumb_key);
+        });
+      }
+    } catch (_) { /* the keys noted earlier are still deleted */ }
+    ids.privateKeys = Array.from(new Set(ids.privateKeys)); ids.publicKeys = Array.from(new Set(ids.publicKeys));
     try {
       if (keepMedia) {
         rec('WARN', 'public photos KEPT so the remaining draft still shows its images', 'bucket ' + cfg.storage.publicBucket + ', prefix public/' + ids.entry + '/');
@@ -142,6 +154,12 @@ async function run(opts) {
       } else {
         for (const k of ids.privateKeys) await storage.del('privateBucket', k).catch(() => {});
         for (const k of ids.publicKeys) await storage.del('publicBucket', k).catch(() => {});
+        // Prove it: every object this run created must be gone from both buckets.
+        const left = [];
+        for (const k of ids.privateKeys) { if (await storage.head('privateBucket', k).catch(() => ({}))) left.push('private:' + k); }
+        for (const k of ids.publicKeys) { if (await storage.head('publicBucket', k).catch(() => ({}))) left.push('public:' + k); }
+        if (left.length) rec('FAIL', 'test photos were left behind in storage', left.join(', '));
+        else rec('PASS', 'no test photo objects left in either bucket (originals, large and small public copies)', (ids.privateKeys.length + ids.publicKeys.length) + ' checked');
       }
     } catch (_) { /* ignore */ }
     try { if (ids.entry) { await query('delete from audit_log where entry_id = $1', [ids.entry]); await query('delete from entries where id = $1', [ids.entry]); } if (ids.users.length) { await query('delete from audit_log where actor_email like $1', ['%-' + tag + '@staging-e2e.invalid']); await query('delete from users where id = any($1)', [ids.users]); } } catch (e) { console.error('cleanup problem: ' + e.message); }

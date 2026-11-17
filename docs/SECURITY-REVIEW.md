@@ -29,7 +29,8 @@ Reviewed 2026-11-15 on branch `feature/workshop-content`. Scope: authentication,
 | Private means private | `npm run staging:check` makes an anonymous request for a private object and fails if it is readable. |
 | Database | **Added in review (migration 002):** row level security is on for every table and any API-role grants are removed, so a hosted provider's public data API (for example Supabase's) can read nothing even if it is switched on. `staging:check` verifies this on the real database. |
 | Upload CORS | The private bucket must allow `PUT` from the site only (rule in `WORKSHOP-SETUP.md`). The page's `connect-src` allows uploads only to `*.r2.cloudflarestorage.com`, not to any https host. |
-| Abandoned uploads | `npm run cleanup:orphans` removes unfinished uploads older than 24 hours. |
+| Abandoned uploads | The form removes a photo's unfinished upload when it gives up. The server also clears any unfinished upload older than the link's life (11 minutes) when the entry is next used, deleting the stored object first so a failed delete stays findable. A retry of the same file reuses its row; unfinished uploads never count toward the 12-photo limit (`test/preview-findings.test.js`). `npm run cleanup:orphans` also removes old ones, retries deletes recorded as `storage_delete_failed`, and releases public copies of removed photos once the live site and Buffer no longer use them. |
+| Removing a photo | Always deletes the private original. Deletes both public copies unless the live website or a Buffer draft still uses them; those are recorded (`public_copies_retained`) and released later. Never touches another entry's files. |
 
 ## Public image approval
 | Check | Result |
@@ -90,7 +91,10 @@ Refuse to run unless explicitly staging (`DEPLOY_ENV`, `BUFFER_ENV`, bucket name
 9. A signed-out session part way through the form lost what was typed -> form is kept.
 10. The database connection skipped TLS certificate verification for remote hosts -> now verified by default (Neon uses a public CA); `DATABASE_SSL_VERIFY=false` is an explicit opt-out for hosts with a private CA.
 
+11. Preview test (17 Nov): the Published banner claimed a LinkedIn draft when LinkedIn was not selected; failed uploads left blocking rows and used the photo limit; list and feed image sizes did not match portrait pictures; removing a photo left the original in storage; the staging e2e script left small public copies -> all fixed with regression tests (`test/preview-findings.test.js`, two browser tests).
+
 ## Still open
+- The purchase-order check treats any word starting with "po" followed by three or more letters as a PO number ("Powder", "Polished", "Portable", "Position" are blocked at approval). Over-blocking only, nothing leaks. Found by a test title; awaiting a decision.
 - Two-factor sign-in and password reset emails.
 - `connect-src` is tied to R2; change it in `vercel.json` if you use another store.
 - Buffer's authenticated API could not be exercised from the build environment (see `WORKSHOP-SETUP.md`).

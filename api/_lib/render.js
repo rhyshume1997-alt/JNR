@@ -55,6 +55,14 @@ const FOOTER = '<footer>\n  <div class="foot-grid">\n    <div><span class="foot-
   '    <div><div class="foot-h">Contact</div><ul class="foot-links"><li><a href="tel:01416475913">0141 647 5913</a></li><li><a href="mailto:john.hume@jnrengineeringltd.co.uk">john.hume@jnrengineeringltd.co.uk</a></li><li><span>Block 8 Unit 1, Whistleberry Industrial Estate, Hamilton, ML3 0ED</span></li></ul></div>\n  </div>\n' +
   '  <div class="foot-bottom"><span>© 2026 JNR Engineering Ltd</span><span class="foot-legal">Registered in Scotland, company no. SC334377. Registered office: Block 8 Unit 1, Whistleberry Industrial Estate, Blantyre, ML3 0ED</span><a href="/privacy">Privacy</a></div>\n</footer>';
 
+// Size of the small (list and feed) copy. New snapshots store it. Older ones only have the large copy's size, and the small copy is
+// that same picture fitted inside 640 x 640 (never enlarged), so it is worked out the same way: the long side is at most 640.
+function thumbSize(img) {
+  if (img.thumb_width > 0 && img.thumb_height > 0) return { width: img.thumb_width, height: img.thumb_height };
+  const scale = Math.min(1, 640 / Math.max(img.width, img.height));
+  return { width: Math.max(1, Math.round(img.width * scale)), height: Math.max(1, Math.round(img.height * scale)) };
+}
+
 function entryUrl(snap) { return snap.is_case_study && snap.body ? '/our-work/' + encodeURIComponent(snap.slug) : null; }
 
 function card(snap) {
@@ -64,7 +72,7 @@ function card(snap) {
   const stage = snap.kind === 'in_production' && snap.stage ? '<span class="work-stage">' + esc(STAGE_LABELS[snap.stage] || '') + '</span>' : '';
   const title = url ? '<a href="' + url + '">' + esc(snap.title) + '</a>' : esc(snap.title);
   return '<article class="work-card work-' + esc(snap.kind) + (url ? ' is-case' : '') + '">' +
-    (img ? '<div class="work-photo"><img src="' + esc(img.thumb_url) + '" alt="' + esc(img.alt) + '" width="640" height="' + Math.round(640 * (img.height / img.width)) + '" loading="lazy" decoding="async"></div>' : '') +
+    (img ? '<div class="work-photo"><img src="' + esc(img.thumb_url) + '" alt="' + esc(img.alt) + '" width="' + thumbSize(img).width + '" height="' + thumbSize(img).height + '" loading="lazy" decoding="async"></div>' : '') +
     '<div class="work-body"><div class="work-meta"><span class="work-pill">' + esc(KIND_LABELS[snap.kind]) + '</span>' + stage + '<time datetime="' + esc(String(snap.event_date).slice(0, 10)) + '">' + esc(fmtDate(snap.event_date)) + '</time></div>' +
     '<h3>' + title + '</h3><p class="work-sum">' + esc(clip(snap.summary, 220)) + '</p>' +
     (spec ? '<p class="work-spec">' + spec + '</p>' : '') +
@@ -110,7 +118,7 @@ function feedItems(entries) {
   return entries.map((e) => {
     const s = e.live_snapshot; const img = s.images && s.images[0];
     return { title: s.title, summary: clip(s.summary, 140), kind: s.kind, kind_label: KIND_LABELS[s.kind], url: entryUrl(s) || '/our-work', date: String(s.event_date).slice(0, 10),
-      image: img ? { url: img.thumb_url, alt: img.alt, width: 640, height: Math.round(640 * (img.height / img.width)) } : null };
+      image: img ? { url: img.thumb_url, alt: img.alt, width: thumbSize(img).width, height: thumbSize(img).height } : null };
   });
 }
 
@@ -119,4 +127,4 @@ function renderNotFound() {
     body: '<div class="page-hero"><div class="hero-bg bg-draw"></div><div class="hero-shade"></div><div class="page-hero-content"><h1><span class="line"><span>Not <em>found.</em></span></span></h1><p class="hero-sub"><a href="/our-work" style="color:#fff">See all our work</a></p></div></div>' });
 }
 
-module.exports = { esc, clip, fmtDate, layout, renderIndex, renderEntry, renderNotFound, feedItems, card };
+module.exports = { esc, clip, fmtDate, layout, renderIndex, renderEntry, renderNotFound, feedItems, card, thumbSize };

@@ -66,11 +66,33 @@ async function statusCounts(user) {
   return out;
 }
 
-async function getImages(entryId, client) {
+// readyOnly: leave out uploads that have not finished (they are not photos yet, and a failed one must never show up or block anything).
+async function getImages(entryId, client, opts) {
   const q = client ? client.query.bind(client) : query;
   const { rows } = await q(
-    'select id, entry_id, position, state, original_name, content_type, bytes, width, height, alt_text, cleared_for_public, (public_key is not null) as has_public from entry_images where entry_id = $1 order by position, created_at', [entryId]);
+    'select id, entry_id, position, state, original_name, content_type, bytes, width, height, alt_text, cleared_for_public, (public_key is not null) as has_public from entry_images where entry_id = $1' + (opts && opts.readyOnly ? " and state = 'ready'" : '') + ' order by position, created_at', [entryId]);
   return rows;
+}
+
+// An upload link lasts presignSeconds. A row still "awaiting" after that can never complete: it is an abandoned upload (the phone lost
+// signal, the tab closed). The row is claimed and removed, then its stored object; if the object cannot be removed that is recorded
+// in the audit history (storage_delete_failed) so cleanup:orphans can retry it, which is how abandoned objects stay findable.
+async function purgeAbandonedUploads(entryId) {
+  const grace = Number(getConfig().upload.presignSeconds) + 60;
+  const stale = await query("select id from entry_images where entry_id = $1 and state = 'awaiting_upload' and created_at < now() - ($2 || ' seconds')::interval", [entryId, String(grace)]);
+  let purged = 0;
+  for (const r of stale.rows) {
+    // Claim the row first. If a slow upload finished in the meantime the row is no longer "awaiting", nothing is returned, and its
+    // object is left alone.
+    const claimed = await query("delete from entry_images where id = $1 and state = 'awaiting_upload' returning original_key", [r.id]);
+    if (!claimed.rows[0]) continue;
+    purged++;
+    try { await storage.del('privateBucket', claimed.rows[0].original_key); } catch (e) {
+      console.error('Could not delete abandoned upload', claimed.rows[0].original_key, e.message);
+      await audit(null, { email: 'system' }, 'storage_delete_failed', entryId, { keys: ['private:' + claimed.rows[0].original_key] });
+    }
+  }
+  return purged;
 }
 
 async function createEntry(user, input, idemKey) {
@@ -134,6 +156,8 @@ async function setStatus(client, user, entry, to, action, detail, extraSets, ext
 }
 
 async function submitEntry(user, id) {
+  assertCanEditContent(user, await getEntry(id));
+  await purgeAbandonedUploads(id);
   return tx(async (client) => {
     const entry = await getEntry(id, client);
     assertCanEditContent(user, entry);
@@ -203,7 +227,7 @@ async function approveEntry(user, id, input) {
     await storage.put('publicBucket', largeKey, copies.large.buffer, 'image/jpeg', 'public, max-age=31536000, immutable');
     await storage.put('publicBucket', thumbKey, copies.thumb.buffer, 'image/jpeg', 'public, max-age=31536000, immutable');
     keysToSet.push({ id: img.id, largeKey, thumbKey });
-    publicImages.push({ id: img.id, url: storage.publicUrl(largeKey), thumb_url: storage.publicUrl(thumbKey), width: copies.large.width, height: copies.large.height, alt: img.alt_text || entry.title });
+    publicImages.push({ id: img.id, url: storage.publicUrl(largeKey), thumb_url: storage.publicUrl(thumbKey), width: copies.large.width, height: copies.large.height, thumb_width: copies.thumb.width, thumb_height: copies.thumb.height, alt: img.alt_text || entry.title });
   }
 
   return tx(async (client) => {
@@ -237,12 +261,12 @@ async function setImageOrder(user, entryId, order) {
   return tx(async (client) => {
     const entry = await getEntry(entryId, client);
     assertCanEditContent(user, entry);
-    const imgs = await getImages(entryId, client);
+    const imgs = await getImages(entryId, client, { readyOnly: true });
     const ids = imgs.map((i) => i.id).sort();
     if (JSON.stringify(order.slice().sort()) !== JSON.stringify(ids)) throw new HttpError(422, 'validation', 'The order must list every photo exactly once.');
     for (let i = 0; i < order.length; i++) await client.query('update entry_images set position = $2 where id = $1', [order[i], i]);
     await touchContent(client, user, entry, 'images_reordered', {});
-    return getImages(entryId, client);
+    return getImages(entryId, client, { readyOnly: true });
   });
 }
 
@@ -271,19 +295,64 @@ async function updateImage(user, imageId, input) {
   });
 }
 
+// Is a stored public copy still used by something outside this draft? The live website reads live_snapshot, and a Buffer draft
+// (anything not a plain failure) was built from the same public addresses. Nothing here is "approved but not yet public": an
+// approval snapshot is discarded by the very edit that removes the photo.
+async function publicCopiesInUse(entryId, imageId) {
+  const { rows } = await query('select live_snapshot from entries where id = $1', [entryId]);
+  const live = rows[0] && rows[0].live_snapshot;
+  if (live && Array.isArray(live.images) && live.images.some((i) => i.id === imageId)) return true;
+  const pubs = await query("select 1 from publications where entry_id = $1 and destination = 'linkedin' and (buffer_post_id is not null or status in ('pending','sending','saved','verified','uncertain')) limit 1", [entryId]);
+  return pubs.rows.length > 0;
+}
+
 async function deleteImage(user, imageId) {
-  const { rows } = await query('select entry_id, original_key from entry_images where id = $1', [imageId]);
-  if (!rows[0]) throw new HttpError(404, 'not_found', 'Photo not found.');
+  const { rows } = await query('select entry_id, state, original_key, public_key, public_thumb_key from entry_images where id = $1', [imageId]);
+  const img = rows[0];
+  if (!img) throw new HttpError(404, 'not_found', 'Photo not found.');
   await tx(async (client) => {
-    const entry = await getEntry(rows[0].entry_id, client);
+    const entry = await getEntry(img.entry_id, client);
     assertCanEditContent(user, entry);
     await client.query('delete from entry_images where id = $1', [imageId]);
-    const remaining = await getImages(entry.id, client);
+    // An unfinished upload is not part of the entry yet: removing one changes nothing the office has seen.
+    if (img.state !== 'ready') return;
+    const remaining = await getImages(entry.id, client, { readyOnly: true });
     for (let i = 0; i < remaining.length; i++) await client.query('update entry_images set position = $2 where id = $1', [remaining[i].id, i]);
     await touchContent(client, user, entry, 'image_removed', { image_id: imageId });
   });
-  // Private original is deleted. Public copies are kept on purpose: a published page or LinkedIn draft may point at them.
-  try { await storage.del('privateBucket', rows[0].original_key); } catch (e) { console.error('Could not delete original', rows[0].original_key, e.message); }
+  // Storage. The private original always goes. Public copies go too unless the live site or a Buffer draft still uses them.
+  const keys = [{ bucket: 'privateBucket', key: img.original_key }];
+  const publicKeys = [img.public_key, img.public_thumb_key].filter(Boolean);
+  if (img.state === 'ready' && publicKeys.length) {
+    if (await publicCopiesInUse(img.entry_id, imageId)) {
+      // Kept for now. Recorded so releasePublicCopies() can remove them once the live site and Buffer no longer use them.
+      await audit(null, user, 'public_copies_retained', img.entry_id, { image_id: imageId, keys: publicKeys });
+    } else publicKeys.forEach((k) => keys.push({ bucket: 'publicBucket', key: k }));
+  }
+  const left = [];
+  for (const k of keys) {
+    try { await storage.del(k.bucket, k.key); } catch (e) { console.error('Could not delete', k.key, e.message); left.push(k.bucket === 'privateBucket' ? 'private:' + k.key : 'public:' + k.key); }
+  }
+  // Recorded so nothing is forgotten: these objects have no database row any more.
+  if (left.length) await audit(null, user, 'storage_delete_failed', img.entry_id, { keys: left });
+}
+
+// Removes public copies of photos that were taken off an entry while something still used them, once nothing does (the entry was
+// re-published without the photo and no Buffer draft is attached). Returns how many objects it removed. Safe to run repeatedly.
+async function releasePublicCopies() {
+  const { rows } = await query("select a.id, a.entry_id, a.detail from audit_log a where a.action = 'public_copies_retained' and not exists (select 1 from audit_log r where r.action = 'public_copies_released' and r.detail->>'image_id' = a.detail->>'image_id') order by a.id");
+  let removed = 0;
+  for (const r of rows) {
+    const imageId = r.detail && r.detail.image_id;
+    const exists = (await query('select 1 from entries where id = $1', [r.entry_id])).rows.length > 0;
+    if (exists && await publicCopiesInUse(r.entry_id, imageId)) continue;
+    let ok = true;
+    for (const k of (r.detail && r.detail.keys) || []) {
+      try { await storage.del('publicBucket', k); removed++; } catch (e) { ok = false; console.error('Could not delete', k, e.message); }
+    }
+    if (ok) await audit(null, { email: 'system' }, 'public_copies_released', exists ? r.entry_id : null, { image_id: imageId });
+  }
+  return removed;
 }
 
 async function presignImage(user, entryId, file) {
@@ -295,12 +364,21 @@ async function presignImage(user, entryId, file) {
   const size = Number(file.size);
   if (!Number.isFinite(size) || size <= 0) throw new HttpError(422, 'validation', 'File size missing.');
   if (size > cfg.maxBytes) throw new HttpError(422, 'too_large', 'That photo is over ' + Math.round(cfg.maxBytes / 1048576) + 'MB.');
-  const { rows: cnt } = await query('select count(*)::int as n from entry_images where entry_id = $1', [entryId]);
-  if (cnt[0].n >= cfg.maxPerEntry) throw new HttpError(422, 'too_many', 'No more than ' + cfg.maxPerEntry + ' photos per entry.');
+  const name = M.clean(file.name).slice(0, 120);
+  await purgeAbandonedUploads(entryId);
+  // A retry of the same file reuses its unfinished upload instead of adding another row.
+  const again = await query("select id, original_key from entry_images where entry_id = $1 and state = 'awaiting_upload' and original_name = $2 and bytes = $3 and content_type = $4 order by created_at desc limit 1", [entryId, name, size, type]);
+  if (again.rows[0]) {
+    await query('update entry_images set created_at = now() where id = $1', [again.rows[0].id]);
+    return { image_id: again.rows[0].id, upload: storage.presignUpload(again.rows[0].original_key, type, size) };
+  }
+  // Only finished photos count toward the limit; unfinished uploads have their own, separate bound.
+  const { rows: cnt } = await query("select count(*) filter (where state = 'ready')::int as ready, count(*) filter (where state = 'awaiting_upload')::int as pending, coalesce(max(position), -1)::int as top from entry_images where entry_id = $1", [entryId]);
+  if (cnt[0].ready >= cfg.maxPerEntry) throw new HttpError(422, 'too_many', 'No more than ' + cfg.maxPerEntry + ' photos per entry.');
+  if (cnt[0].pending >= cfg.maxPerEntry) throw new HttpError(429, 'too_many_pending', 'Too many uploads are still unfinished. Wait a few minutes, or remove them, then try again.');
   const imageId = crypto.randomUUID();
   const key = 'originals/' + entryId + '/' + imageId;
-  const name = M.clean(file.name).slice(0, 120);
-  await query('insert into entry_images (id, entry_id, position, original_key, original_name, content_type, bytes) values ($1,$2,$3,$4,$5,$6,$7)', [imageId, entryId, cnt[0].n, key, name, type, size]);
+  await query('insert into entry_images (id, entry_id, position, original_key, original_name, content_type, bytes) values ($1,$2,$3,$4,$5,$6,$7)', [imageId, entryId, cnt[0].top + 1, key, name, type, size]);
   return { image_id: imageId, upload: storage.presignUpload(key, type, size) };
 }
 
@@ -312,10 +390,13 @@ async function finalizeImage(user, imageId) {
   assertCanEditContent(user, entry);
   if (img.state === 'ready') return (await getImages(img.entry_id)).find((i) => i.id === imageId);
   const cfg = getConfig().upload;
+  // Refusing an upload removes it, but only while it is still unfinished: a photo another request has just completed is never touched.
   const reject = async (err) => {
-    try { await storage.del('privateBucket', img.original_key); } catch (_) { /* ignore */ }
-    await query('delete from entry_images where id = $1', [imageId]);
-    await audit(null, user, 'upload_rejected', img.entry_id, { code: err.code, name: img.original_name });
+    const gone = await query("delete from entry_images where id = $1 and state = 'awaiting_upload' returning id", [imageId]);
+    if (gone.rows[0]) {
+      try { await storage.del('privateBucket', img.original_key); } catch (_) { /* ignore */ }
+      await audit(null, user, 'upload_rejected', img.entry_id, { code: err.code, name: img.original_name });
+    }
     throw err;
   };
   const head = await storage.head('privateBucket', img.original_key);
@@ -326,12 +407,20 @@ async function finalizeImage(user, imageId) {
   try { info = await images.inspectOriginal(buf, img.content_type); } catch (e) { return reject(e instanceof images.ImageError ? new HttpError(422, e.code, e.message) : e); }
   try {
     await tx(async (client) => {
-      await client.query('update entry_images set state = \'ready\', bytes = $2, sha256 = $3, width = $4, height = $5, content_type = $6 where id = $1',
+      // The limit is enforced here, on finished photos, with the entry locked, so parallel uploads cannot slip past it together.
+      await client.query('select 1 from entries where id = $1 for update', [img.entry_id]);
+      const cur = await client.query('select state from entry_images where id = $1 for update', [imageId]);
+      if (!cur.rows[0]) throw new HttpError(409, 'upload_missing', 'The upload did not arrive. Try that photo again.');   // cleared while it was being checked
+      if (cur.rows[0].state === 'ready') return;                                                                           // another request already finished it
+      const done = await client.query("select count(*)::int as n from entry_images where entry_id = $1 and state = 'ready' and id <> $2", [img.entry_id, imageId]);
+      if (done.rows[0].n >= cfg.maxPerEntry) throw new HttpError(422, 'too_many', 'No more than ' + cfg.maxPerEntry + ' photos per entry.');
+      await client.query('update entry_images set state = \'ready\', bytes = $2, sha256 = $3, width = $4, height = $5, content_type = $6 where id = $1 and state = \'awaiting_upload\'',
         [imageId, buf.length, info.sha256, info.width, info.height, info.contentType]);
       await touchContent(client, user, await getEntry(img.entry_id, client), 'image_added', { image_id: imageId, bytes: buf.length });
     });
   } catch (e) {
     if (e.code === '23505') return reject(new HttpError(409, 'duplicate', 'That photo is already on this entry.'));
+    if (e instanceof HttpError && e.code === 'too_many') return reject(e);
     throw e;
   }
   return (await getImages(img.entry_id)).find((i) => i.id === imageId);
@@ -355,6 +444,6 @@ async function entryAudit(user, entryId, limit) {
 
 module.exports = {
   getEntry, listEntries, statusCounts, getImages, createEntry, updateEntry, submitEntry, previewApproval, approveEntry, rejectEntry,
-  setImageOrder, updateImage, deleteImage, presignImage, finalizeImage, previewImage, entryAudit, setStatus, snapshotOf, viewFor,
+  setImageOrder, updateImage, deleteImage, purgeAbandonedUploads, releasePublicCopies, presignImage, finalizeImage, previewImage, entryAudit, setStatus, snapshotOf, viewFor,
   assertCanSee, assertCanEditContent, ENTRY_COLS,
 };

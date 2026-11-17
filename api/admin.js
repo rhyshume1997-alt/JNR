@@ -43,7 +43,7 @@ route('POST', '/entries', 'workshop', async (ctx) => {
 route('GET', '/entries/:id', 'workshop', async (ctx, id) => {
   const entry = await E.getEntry(id);
   E.assertCanSee(ctx.user, entry);
-  const out = { entry: E.viewFor(ctx.user, entry), images: await E.getImages(id) };
+  const out = { entry: E.viewFor(ctx.user, entry), images: await E.getImages(id, null, { readyOnly: true }) };
   if (M.hasRole(ctx.user, 'editor')) { out.publications = await P.listPublications(id); out.checks = await E.previewApproval(ctx.user, id); }
   return { body: out };
 });
