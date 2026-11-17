@@ -10,7 +10,7 @@ const { storage } = require('./s3');
 const images = require('./images');
 const { getConfig } = require('./config');
 
-const ENTRY_COLS = 'id, kind, status, title, summary, material, process, stage, body, is_case_study, event_date, job_ref, customer_name, customer_notes, internal_notes, customer_public_ok, customer_public_label, destinations, caption, caption_source, slug, version, created_by, created_at, updated_at, submitted_at, reviewed_by, reviewed_at, review_note, approved_at, live_at, (live_snapshot is not null) as is_live';
+const ENTRY_COLS = 'id, kind, status, title, summary, material, process, stage, body, is_case_study, event_date, job_ref, customer_name, customer_notes, internal_notes, rough_notes, customer_public_ok, customer_public_label, destinations, caption, caption_source, slug, version, created_by, created_at, updated_at, submitted_at, reviewed_by, reviewed_at, review_note, approved_at, live_at, (live_snapshot is not null) as is_live';
 
 const HAS_APPROVED_COPY = ['approved', 'published', 'failed'];
 

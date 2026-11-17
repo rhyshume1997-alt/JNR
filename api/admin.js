@@ -9,13 +9,14 @@ const E = require('./_lib/entries');
 const P = require('./_lib/publish');
 const M = require('./_lib/model');
 const caption = require('./_lib/caption');
+const guide = require('./_lib/writing-guide');
 const tolra = require('./_lib/tolra');
 const { query } = require('./_lib/db');
 const { getConfig } = require('./_lib/config');
 
 const ID = '([0-9a-f-]{36})';
 const R = [];
-function route(method, path, minRole, fn) { R.push({ method, re: new RegExp('^' + path.replace(/:id/g, ID) + '$'), minRole, fn }); }
+function route(method, path, minRole, fn) { R.push({ method, re: new RegExp('^' + path.replace(/:id/g, ID).replace(/:version/g, '([0-9]{1,6})') + '$'), minRole, fn }); }
 
 function pathOf(req) {
   const url = new URL(req.url, 'http://x');
@@ -79,6 +80,12 @@ route('GET', '/images/:id/preview', 'workshop', async (ctx, id) => ({ raw: await
 
 // ---- publications
 route('POST', '/publications/:id/resolve', 'editor', async (ctx, id) => ({ body: await P.resolveUncertain(ctx.user, id, await ctx.body()) }));
+
+// ---- writing guide (editors and admins): the voice and examples used for AI-written LinkedIn posts
+route('GET', '/writing-guide', 'editor', async () => ({ body: Object.assign(await guide.getGuide(), { history: await guide.guideHistory(20), limits: guide.LIMITS }) }));
+route('PUT', '/writing-guide', 'editor', async (ctx) => ({ body: await guide.saveGuide(ctx.user, await ctx.body()) }));
+route('POST', '/writing-guide/restore/:version', 'editor', async (ctx, version) => ({ body: await guide.restoreVersion(ctx.user, version) }));
+route('POST', '/entries/:id/style-example', 'editor', async (ctx, id) => ({ status: 201, body: await guide.addPublishedExample(ctx.user, id) }));
 
 // ---- users (admin)
 route('GET', '/users', 'admin', async () => ({ body: { users: (await query('select id, email, name, role, disabled, created_at from users order by created_at')).rows } }));

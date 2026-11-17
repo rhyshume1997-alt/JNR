@@ -79,6 +79,7 @@
       h('label', { class: 'check' }, caseStudy, h('span', { text: 'Substantial project: give it its own case study page' })),
       inp('body', 'Case study write-up (optional, plain text, blank line between paragraphs)', 'textarea', { rows: 200 }),
       h('h3', { text: 'Private (never published)' }),
+      inp('rough_notes', 'Job notes in their own words (private; the raw material for the LinkedIn post)', 'textarea', { rows: 140 }),
       inp('customer_name', 'Customer'), inp('job_ref', 'Job reference'), inp('customer_notes', 'Customer notes', 'textarea'),
       isEditor() ? inp('internal_notes', 'Internal notes', 'textarea') : null,
       isAdmin() ? h('div', null, h('label', { class: 'check' }, custOk, h('span', { text: 'Admin: allow naming this customer publicly' })), inp('customer_public_label', 'Public customer label (what may be shown)')) : null);
@@ -133,7 +134,7 @@
     async function saveFields(quiet) {
       if (!canEdit) return;
       var body = { version: e.version, kind: kind.value, title: f.title.value, summary: f.summary.value, material: f.material.value, process: f.process.value, stage: stage.value || null, event_date: f.event_date.value || undefined,
-        body: f.body.value, is_case_study: caseStudy.checked, customer_name: f.customer_name.value, job_ref: f.job_ref.value, customer_notes: f.customer_notes.value };
+        body: f.body.value, is_case_study: caseStudy.checked, customer_name: f.customer_name.value, job_ref: f.job_ref.value, customer_notes: f.customer_notes.value, rough_notes: f.rough_notes.value };
       if (isEditor()) { body.internal_notes = f.internal_notes.value; body.destinations = { website: destWeb.checked, linkedin: liOn && destLi.checked }; body.caption = cap.value; }
       if (isAdmin()) { body.customer_public_ok = custOk.checked; body.customer_public_label = f.customer_public_label.value; }
       var r = await call('PATCH', '/entries/' + id, body); e = r.entry;

@@ -48,10 +48,10 @@ describe('browser-setup.sql against real Postgres', { skip: SKIP }, () => {
     const m = spawnSync(process.execPath, [path.join(root, 'scripts', 'migrate.js')], { env: Object.assign({}, process.env, { DATABASE_URL: urlFor(b) }), encoding: 'utf8' });
     assert.strictEqual(m.status, 0, m.stdout + m.stderr);
     const sa = await shape(a), sb = await shape(b);
-    assert.ok(sa.columns.length > 60 && sa.rls.length === 8);
+    assert.ok(sa.columns.length > 60 && sa.rls.length === 10);
     assert.deepStrictEqual(sa.columns, sb.columns); assert.deepStrictEqual(sa.indexes, sb.indexes); assert.deepStrictEqual(sa.constraints, sb.constraints);
     assert.deepStrictEqual(sa.rls, sb.rls); sa.rls.forEach((t) => assert.strictEqual(t.relrowsecurity, true));
-    assert.deepStrictEqual(sa.migrations.map((x) => x.name), ['001_workshop_content.sql', '002_lock_down_tables.sql']);
+    assert.deepStrictEqual(sa.migrations.map((x) => x.name), ['001_workshop_content.sql', '002_lock_down_tables.sql', '003_ai_writing_guide.sql']);
     assert.deepStrictEqual(sa.migrations, sb.migrations);
   });
 
@@ -64,6 +64,47 @@ describe('browser-setup.sql against real Postgres', { skip: SKIP }, () => {
     assert.strictEqual(JSON.stringify(await shape(a)), before);
   });
 
+  describe('upgrade file for a database that already ran the first setup', () => {
+    const up = path.join(root, 'db', 'browser-upgrade-003.sql');
+    // What a database looked like after the original browser-setup.sql (migrations 001 and 002 only).
+    async function firstSetupOnly() {
+      const a = await mkdb();
+      const c0 = new Client({ connectionString: urlFor(a) }); await c0.connect();
+      await c0.query("create table schema_migrations (name text primary key, applied_at timestamptz not null default now())"); await c0.end();
+      for (const f of ['001_workshop_content.sql', '002_lock_down_tables.sql']) assert.strictEqual(psql(a, path.join(root, 'db', 'migrations', f)).status, 0);
+      const c = new Client({ connectionString: urlFor(a) }); await c.connect();
+      await c.query("insert into schema_migrations (name) values ('001_workshop_content.sql'), ('002_lock_down_tables.sql')");
+      await c.query("insert into users (email, name, role, password_hash) values ('keep@t.test', 'Keep', 'admin', 'x')");
+      await c.end();
+      return a;
+    }
+    it('upgrades to exactly the same database as npm run migrate, keeps existing data, and records itself', async () => {
+      const a = await firstSetupOnly(); const b = await mkdb();
+      const r = psql(a, up); assert.strictEqual(r.status, 0, r.stdout + r.stderr);
+      const m = spawnSync(process.execPath, [path.join(root, 'scripts', 'migrate.js')], { env: Object.assign({}, process.env, { DATABASE_URL: urlFor(b) }), encoding: 'utf8' });
+      assert.strictEqual(m.status, 0, m.stdout + m.stderr);
+      const sa = await shape(a), sb = await shape(b);
+      assert.deepStrictEqual(sa.columns, sb.columns); assert.deepStrictEqual(sa.indexes, sb.indexes); assert.deepStrictEqual(sa.constraints, sb.constraints); assert.deepStrictEqual(sa.rls, sb.rls);
+      assert.deepStrictEqual(sa.migrations, sb.migrations);
+      const c = new Client({ connectionString: urlFor(a) }); await c.connect();
+      assert.strictEqual((await c.query("select count(*)::int n from users where email = 'keep@t.test'")).rows[0].n, 1, 'existing rows are untouched');
+      await c.end();
+    });
+    it('refuses to run twice, and refuses on a database without the first setup, changing nothing either way', async () => {
+      const a = await firstSetupOnly(); assert.strictEqual(psql(a, up).status, 0);
+      const before = JSON.stringify(await shape(a));
+      const again = psql(a, up); assert.notStrictEqual(again.status, 0); assert.match(again.stderr, /already been run on this database\. Nothing was changed/);
+      assert.strictEqual(JSON.stringify(await shape(a)), before);
+      const empty = await mkdb(); const none = psql(empty, up);
+      assert.notStrictEqual(none.status, 0); assert.match(none.stderr, /first JNR setup .* has not been run/);
+    });
+    it('holds no secrets and is up to date', () => {
+      const sql = require('node:fs').readFileSync(up, 'utf8');
+      assert.ok(!/postgres(ql)?:\/\/|Bearer\s|AKIA[0-9A-Z]{12}|sk-[A-Za-z0-9]{10}|\b[a-f0-9]{40,}\b/.test(sql));
+      assert.match(sql, /^begin;/m); assert.match(sql, /^commit;/m);
+    });
+  });
+
   it('leaves nothing behind if it fails part way (one transaction)', async () => {
     const a = await mkdb();
     const c = new Client({ connectionString: urlFor(a) }); await c.connect(); await c.query('create table entries (x int)'); await c.end(); // simulates a half-set-up database
@@ -73,10 +114,10 @@ describe('browser-setup.sql against real Postgres', { skip: SKIP }, () => {
     await c2.end();
   });
 
-  it('npm run migrate afterwards skips both files instead of repeating them', async () => {
+  it('npm run migrate afterwards skips every file instead of repeating them', async () => {
     const a = await mkdb(); assert.strictEqual(psql(a, path.join(root, 'db', 'browser-setup.sql')).status, 0);
     const m = spawnSync(process.execPath, [path.join(root, 'scripts', 'migrate.js')], { env: Object.assign({}, process.env, { DATABASE_URL: urlFor(a) }), encoding: 'utf8' });
-    assert.strictEqual(m.status, 0, m.stdout + m.stderr); assert.match(m.stdout, /skip\s+001_workshop_content\.sql/); assert.match(m.stdout, /skip\s+002_lock_down_tables\.sql/); assert.ok(!/apply/.test(m.stdout));
+    assert.strictEqual(m.status, 0, m.stdout + m.stderr); assert.match(m.stdout, /skip\s+001_workshop_content\.sql/); assert.match(m.stdout, /skip\s+002_lock_down_tables\.sql/); assert.match(m.stdout, /skip\s+003_ai_writing_guide\.sql/); assert.ok(!/apply/.test(m.stdout));
   });
 });
 

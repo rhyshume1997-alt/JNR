@@ -87,6 +87,11 @@ function validateEntryFields(input, opts) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(input.event_date)) || Number.isNaN(Date.parse(input.event_date))) errors.event_date = 'Use a date like 2026-11-15.';
     else out.event_date = input.event_date;
   }
+  // The private "in your own words" box (never published; the raw material for an AI-written LinkedIn post). Empty is an empty string, not null.
+  if (has('rough_notes')) {
+    const v = clean(input.rough_notes);
+    if (v.length > 4000) errors.rough_notes = 'Too long (4000 characters at most).'; else out.rough_notes = v;
+  }
   [['job_ref', 60], ['customer_name', 200], ['customer_notes', 2000], ['internal_notes', 4000], ['customer_public_label', 120]].forEach(function (p) {
     if (has(p[0])) {
       const v = clean(input[p[0]]);
@@ -116,7 +121,7 @@ function slugify(title) {
 const CONTENT_FIELDS = ['kind', 'title', 'summary', 'material', 'process', 'stage', 'body', 'is_case_study', 'event_date',
   'customer_public_ok', 'customer_public_label', 'destinations', 'caption'];
 // Fields recorded by name only in the audit log (they can hold customer or internal information).
-const PRIVATE_FIELDS = ['job_ref', 'customer_name', 'customer_notes', 'internal_notes', 'customer_public_label'];
+const PRIVATE_FIELDS = ['job_ref', 'customer_name', 'customer_notes', 'internal_notes', 'customer_public_label', 'rough_notes'];
 
 module.exports = {
   KINDS, KIND_LABELS, STATUSES, STAGES, STAGE_LABELS, ROLES, ROLE_RANK, DESTINATIONS, TRANSITIONS,

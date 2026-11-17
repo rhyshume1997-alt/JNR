@@ -65,6 +65,7 @@
     var cust = h('input', { type: 'text', id: 'customer', maxlength: '200', autocomplete: 'off' });
     var jobref = h('input', { type: 'text', id: 'jobref', maxlength: '60', autocomplete: 'off' });
     var notes = h('textarea', { id: 'notes', maxlength: '2000' });
+    var rough = h('textarea', { id: 'rough', maxlength: '4000', rows: '5' });
     var review = h('input', { type: 'checkbox', id: 'review', checked: true });
     var msg = h('div', { 'aria-live': 'polite' });
     var send = h('button', { type: 'submit', class: 'big', text: 'Save update' });
@@ -78,7 +79,7 @@
       try {
         if (!entryId) {
           var body = { kind: document.querySelector('input[name=kind]:checked').value, title: title.value, summary: summary.value, material: material.value, process: process.value,
-            stage: stage.value || null, customer_name: cust.value, job_ref: jobref.value, customer_notes: notes.value, destinations: { website: true, linkedin: false } };
+            stage: stage.value || null, customer_name: cust.value, job_ref: jobref.value, customer_notes: notes.value, rough_notes: rough.value, destinations: { website: true, linkedin: false } };
           var created = await JNR.call('POST', '/entries', body, { 'Idempotency-Key': key });
           entryId = created.entry.id;
         }
@@ -113,6 +114,7 @@
       h('h3', { text: 'What is it?' }), h('div', { class: 'seg', role: 'radiogroup', 'aria-label': 'Type of update' }, kinds),
       field('title', 'Job title', title, 'A short name for the part or job. No customer names.'),
       h('div', null, h('label', { for: 'summary', text: 'Short description' }), summary, count, h('div', { class: 'hint', text: 'What it is and what is happening, in plain words. Do not include customer names, drawing numbers or contact details.' }), h('div', { class: 'err', id: 'summary-err', role: 'alert' })),
+      field('rough', 'Tell us about the job in your own words', rough, 'What was made, what it is for, anything interesting or tricky. Talk like you would to a mate. Use the microphone on your phone keyboard if it is easier. Please leave out prices and drawing numbers. This is private; it is only used to help write the post.'),
       field('material', 'Material', material, 'For example: 316 stainless steel'),
       field('process', 'Process', process, 'For example: CNC milling, then fabrication'),
       stageWrap,
