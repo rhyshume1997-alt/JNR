@@ -151,6 +151,8 @@
 
   // ---------- writing the post
   async function generate() {
+    // read the ticks BEFORE clearing the box they live in (clearing first threw the confirmation away)
+    var acknowledged = S.ack.filter(function (a) { return a.box.checked; }).map(function (a) { return a.key; });
     el.ai.textContent = ''; say(''); S.ack = [];
     el.gen.disabled = true; var label = el.gen.textContent; el.gen.textContent = 'Writing…';
     try {
@@ -158,7 +160,7 @@
       await syncFields();
       var r = await call('POST', '/entries/' + S.id + '/ai-caption', {
         brand: el.brand ? el.brand.value : undefined, sign_off: el.sign ? el.sign.checked : undefined, instruction: el.instr.value || undefined,
-        acknowledge: S.ack.filter(function (a) { return a.box.checked; }).map(function (a) { return a.key; }) });
+        acknowledge: acknowledged });
       S.ack = [];
       var usage = r.usage ? ' You have used ' + r.usage.user_today + ' of ' + r.usage.user_limit + ' AI drafts today.' : '';
       if (r.status === 'ok') {

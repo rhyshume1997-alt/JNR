@@ -415,6 +415,19 @@ describe('browser tests', { skip: SKIP }, () => {
       assert.strictEqual(e.status, 'published'); assert.strictEqual(e.destinations.website, true);
       await c.close();
     });
+    it('a "tolerance" warning can be ticked and the post is then written (tick-then-generate)', async () => {
+      aiOn(); fake.state.calls.length = 0;
+      const c = await ctx('desktop'); const p = await page(c, 'post-ack');
+      await signIn(p, '/post', 'admin@jnr.test'); await p.waitForSelector('#p-title');
+      await p.fill('#p-title', 'Stainless brackets for a boat builder'); await p.fill('#p-notes', 'Stainless brackets. Tight tolerances on the bore.');
+      fake.state.reply = JSON.stringify({ post: 'We made stainless brackets for a boat builder, with a carefully held bore.', questions: [] });
+      await p.click('#p-gen'); await p.waitForSelector('#p-ai .notice.warn');
+      assert.match(await p.locator('#p-ai').innerText(), /tolerance/i); assert.strictEqual(fake.state.calls.length, 0, 'nothing sent before the tick');
+      await p.click('#p-gen'); await p.waitForSelector('#p-ai .notice.warn'); assert.strictEqual(fake.state.calls.length, 0, 'an unticked box does not count');
+      await p.check('#p-ai input[type=checkbox]'); await p.click('#p-gen'); await p.waitForSelector('#p-ai .notice.ok');
+      assert.match(await p.inputValue('#p-caption'), /stainless brackets/i); assert.ok(fake.state.calls.length >= 1);
+      await c.close(); aiOff();
+    });
     it('is usable on a phone and shows a blocked AI request in plain words', async () => {
       aiOn();
       const c = await ctx('phone'); const p = await page(c, 'post-phone-admin');
