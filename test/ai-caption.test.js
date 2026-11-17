@@ -1,7 +1,7 @@
 'use strict';
 // AI-written LinkedIn posts: kill switch, what is (and is never) sent, the confidentiality gate, checks on the reply, cost limits, failures.
 // A fake Anthropic service stands in for the real one: no cost, no network.
-const { describe, it, before, after, beforeEach } = require('node:test');
+const { describe, afterEach, it, before, after, beforeEach } = require('node:test');
 const assert = require('node:assert');
 const crypto = require('node:crypto');
 const H = require('../testlib/harness');
@@ -194,6 +194,32 @@ describe('AI-written posts (database, fake AI service)', { skip: SKIP }, () => {
       for (const bad of ['{"post": "We made a bracket from alu', 'Here is your post: We turned a run of brackets this week.', '[1,2]']) {
         fake.state.replies = [bad, bad]; const b = await gen(id); assert.strictEqual(b.data.status, 'rejected', bad + ' -> ' + JSON.stringify(b.data)); assert.strictEqual(b.data.caption, undefined);
       }
+    });
+    describe('a reply with no text is explained, retried once with more room, and logged without private data', () => {
+      const lines = []; let orig;
+      beforeEach(() => { lines.length = 0; orig = console.error; console.error = (m) => { lines.push(String(m)); }; fake.state.rawContent = null; fake.state.rawQueue = []; });
+      afterEach(() => { console.error = orig; fake.state.rawContent = null; });
+      it('only a thinking block, cut off at the token limit: retried with a bigger cap, then a plain reason', async () => {
+        const id = await entry(); fake.state.rawContent = [{ type: 'thinking', thinking: 'secret reasoning about Zeta Hydraulics' }]; fake.state.stopReason = 'max_tokens';
+        const r = await gen(id); assert.strictEqual(r.data.status, 'error'); assert.strictEqual(r.data.kind, 'cut_off'); assert.match(r.data.error, /ran out of room/); assert.ok(r.data.fallback);
+        assert.strictEqual(fake.state.calls.length, 2); assert.strictEqual(fake.state.calls[0].body.max_tokens, 400); assert.strictEqual(fake.state.calls[1].body.max_tokens, 800);
+        assert.ok(lines.length >= 1 && lines.every((l) => l.startsWith('ai-caption failed: ')));
+        const joined = lines.join('\n'); assert.match(joined, /"stop_reason":"max_tokens"/); assert.match(joined, /"blocks":\["thinking"\]/); assert.match(joined, /"model":"claude-haiku-5-5"/);
+        for (const bad of ['Zeta', 'secret reasoning', 'sk-test-key', 'Hydraulics', 'ZH-5521']) assert.ok(!joined.includes(bad), 'log must not contain ' + bad);
+        const a = (await query("select detail from audit_log where action = 'ai_caption_result' order by id desc limit 1")).rows[0].detail; assert.strictEqual(a.reason, 'cut_off'); assert.strictEqual(a.stop_reason, 'max_tokens');
+      });
+      it('an empty reply that then works on the retry gives a draft', async () => {
+        const id = await entry(); fake.state.rawQueue = [[]]; fake.state.stopReason = 'end_turn';
+        const r = await gen(id); assert.strictEqual(r.data.status, 'ok'); assert.match(r.data.caption, /brackets/); assert.strictEqual(fake.state.calls.length, 2);
+        assert.ok(lines.some((l) => /"kind":"empty"/.test(l)), 'the first failure was logged');
+      });
+      it('a refusal says so; a wrong model name and a rejected key are named', async () => {
+        const id = await entry(); fake.state.rawContent = []; fake.state.stopReason = 'refusal';
+        const a = await gen(id); assert.strictEqual(a.data.kind, 'refused'); assert.match(a.data.error, /declined/); assert.strictEqual(fake.state.calls.length, 1);
+        fake.state.rawContent = null; fake.state.stopReason = 'end_turn'; fake.state.status = 404;
+        const b = await gen(id); assert.strictEqual(b.data.kind, 'model'); assert.match(b.data.error, /AI_CAPTION_MODEL/);
+        fake.state.status = 401; const c = await gen(id); assert.strictEqual(c.data.kind, 'auth');
+      });
     });
     it('a non-list "acknowledge" is ignored instead of crashing', async () => {
       const id = await entry({ rough_notes: 'Machined to drawing 4471-B.' });

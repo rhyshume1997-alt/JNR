@@ -185,28 +185,50 @@ async function reserve(user, entryId, attempt) {
 }
 
 // ---- 5. the provider ----------------------------------------------------------------------------------------------------------------
-class ProviderError extends Error { constructor(kind, message) { super(message); this.kind = kind; } }
+class ProviderError extends Error { constructor(kind, message, detail) { super(message); this.kind = kind; this.detail = detail || {}; } }
 
-async function callProvider(system, user, fetchImpl) {
+// A short, safe record of why a call failed: only fixed words and numbers, never the notes, the reply or the key.
+const SAFE_DETAIL = ['status', 'error_type', 'stop_reason', 'blocks', 'tokens_out', 'max_tokens', 'model'];
+function safeDetail(d) {
+  const out = {};
+  for (const k of SAFE_DETAIL) {
+    const v = d && d[k];
+    if (typeof v === 'number') out[k] = v;
+    else if (typeof v === 'string') out[k] = v.replace(/[^A-Za-z0-9_.\-]/g, '').slice(0, 60);
+    else if (Array.isArray(v)) out[k] = v.map((x) => String(x).replace(/[^A-Za-z0-9_.\-]/g, '').slice(0, 30)).slice(0, 6);
+  }
+  return out;
+}
+
+async function callProvider(system, user, fetchImpl, opts) {
   const cfg = getConfig().caption;
+  const maxTokens = Math.min((opts && opts.maxTokens) || cfg.maxOutputTokens, 800);
   let res;
   try {
     res = await (fetchImpl || fetch)(cfg.apiUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': cfg.apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: cfg.model, max_tokens: cfg.maxOutputTokens, system, messages: [{ role: 'user', content: user }] }),
+      body: JSON.stringify({ model: cfg.model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] }),
       signal: AbortSignal.timeout(cfg.timeoutMs),
       redirect: 'error',   // a redirect would carry the key to another address
     });
   } catch (e) { throw new ProviderError(e && e.name === 'TimeoutError' ? 'timeout' : 'network', 'The AI service did not answer in time.'); }
-  if (res.status === 401 || res.status === 403) throw new ProviderError('auth', 'The AI key was refused. Ask an admin to check it.');
-  if (res.status === 429) throw new ProviderError('rate', 'The AI service is busy or over its limit. Try again in a minute.');
-  if (!res.ok) throw new ProviderError('server', 'The AI service had a problem (' + res.status + ').');
+  let errType = ''; if (!res.ok) { try { const eb = await res.json(); errType = eb && eb.error && typeof eb.error.type === 'string' ? eb.error.type : ''; } catch (_) { /* no body */ } }
+  const det = { status: res.status, error_type: errType, model: cfg.model, max_tokens: maxTokens };
+  if (res.status === 401 || res.status === 403) throw new ProviderError('auth', 'The AI key was refused. Ask an admin to check it.', det);
+  if (res.status === 404) throw new ProviderError('model', 'The AI model name is not recognised. Ask an admin to check AI_CAPTION_MODEL.', det);
+  if (res.status === 429) throw new ProviderError('rate', 'The AI service is busy or over its limit. Try again in a minute.', det);
+  if (!res.ok) throw new ProviderError('server', 'The AI service had a problem (' + res.status + ').', det);
   let data; try { data = await res.json(); } catch (_) { throw new ProviderError('server', 'The AI service sent an unreadable answer.'); }
   if (!data || typeof data !== 'object') throw new ProviderError('server', 'The AI service sent an unreadable answer.');
   const block = (data.content || []).find((b) => b.type === 'text');
-  if (!block || !block.text) throw new ProviderError('server', 'The AI service sent no text.');
   const u = data.usage || {};
+  if (!block || !block.text) {
+    const d2 = Object.assign({}, det, { stop_reason: data.stop_reason || 'none', blocks: (Array.isArray(data.content) ? data.content : []).map((b) => (b && b.type) || 'unknown'), tokens_out: Number(u.output_tokens) || 0 });
+    if (data.stop_reason === 'max_tokens') throw new ProviderError('cut_off', 'The AI ran out of room before it wrote anything.', d2);
+    if (data.stop_reason === 'refusal') throw new ProviderError('refused', 'The AI declined to write this one. Reword the notes, or use the free template.', d2);
+    throw new ProviderError('empty', 'The AI service sent no text.', d2);
+  }
   return { text: block.text.trim(), stop_reason: data.stop_reason, tokens_in: Number(u.input_tokens) || 0, tokens_out: Number(u.output_tokens) || 0 };
 }
 
@@ -276,9 +298,12 @@ async function generate(user, entryId, E, input, deps) {
       return Object.assign({ status: 'rejected', problems: lastProblems, message: e.message, fallback: templateCaption(factsOf(entry)) }, base, { usage: await usageNow(user.id) });
     }
     let out;
-    try { out = await callProvider(system, userMsg, deps && deps.fetchImpl); }
+    try { out = await callProvider(system, userMsg, deps && deps.fetchImpl, { maxTokens: attempt === 2 ? cfg.maxOutputTokens * 2 : cfg.maxOutputTokens }); }
     catch (e) {
-      try { await audit(null, user, 'ai_caption_result', entryId, { ok: false, reason: e.kind || 'error' }); } catch (_) { /* the answer below matters more */ }
+      const detail = safeDetail(e.detail);
+      try { console.error('ai-caption failed: ' + JSON.stringify(Object.assign({ kind: e.kind || 'error', attempt }, detail))); } catch (_) { /* logging must never break the request */ }
+      try { await audit(null, user, 'ai_caption_result', entryId, Object.assign({ ok: false, reason: e.kind || 'error', attempt }, detail)); } catch (_) { /* the answer below matters more */ }
+      if (attempt === 1 && (e.kind === 'cut_off' || e.kind === 'empty')) { userMsg = userPrompt(sent.facts) + '\n\nYour last reply had no text. Reply with the JSON only, and keep the post short.'; continue; }
       return Object.assign({ status: 'error', error: e.kind ? e.message : 'The AI service is not available right now.', kind: e.kind || 'error', fallback: templateCaption(factsOf(entry)) }, base, { usage: await usageNow(user.id) });
     }
     const reply = parseReply(out.text);

@@ -229,7 +229,7 @@ async function startFakeAnthropic() {
     if (state.delayMs) await new Promise((r) => setTimeout(r, state.delayMs));
     res.writeHead(state.status, { 'content-type': 'application/json' });
     const text = state.replies.length ? state.replies.shift() : state.reply;
-    res.end(JSON.stringify(state.status === 200 ? { content: [{ type: 'text', text }], usage: state.usage, stop_reason: state.stopReason } : { error: { message: 'nope' } }));
+    res.end(JSON.stringify(state.status === 200 ? { content: (state.rawQueue && state.rawQueue.length ? state.rawQueue.shift() : state.rawContent) || [{ type: 'text', text }], usage: state.usage, stop_reason: state.stopReason } : { error: { message: 'nope' } }));
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   return { url: 'http://127.0.0.1:' + server.address().port + '/v1/messages', state, close: () => new Promise((r) => server.close(r)) };

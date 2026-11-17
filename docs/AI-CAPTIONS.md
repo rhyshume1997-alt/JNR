@@ -48,3 +48,10 @@ John posts for either J.N.R. Engineering or Marpet (a fabrication company and J.
 ## Tests
 
 `test/ai-caption.test.js` (47 tests with a fake AI service: kill switch, allow-list, key only in a header, token ceilings, confidentiality gate, checks on the reply, retry, questions, sign-off, regenerate, limits including a concurrency test, provider failures, nothing saved or sent to Buffer, approval still independent), `test/writing-guide.test.js`, and four browser tests (phone form, kill switch off, generate/edit/regenerate/save/blocked/writing guide, limit message).
+
+## When the AI call fails
+Every failed call writes one log line `ai-caption failed: {...}` and an audit record with only fixed fields: `kind`
+(auth, model, rate, timeout, network, server, cut_off, refused, empty), HTTP `status`, Anthropic `error_type`,
+`stop_reason`, the reply's block types (e.g. `["thinking"]`), `tokens_out`, `max_tokens`, `model`. Never the notes,
+the reply text, names or the key. A reply with no text (cut off, or only a non-text block) is retried once with double
+the token cap (ceiling 800), then the free template is offered.
