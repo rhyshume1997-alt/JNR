@@ -22,6 +22,8 @@ async function main() {
   await need('Post', ['id', 'text', 'status', 'dueAt', 'sentAt', 'channelId', 'assets']);
   await need('Query', ['post', 'channels']);
   await need('SchedulingType', ['automatic']);
+  await need('ShareMode', ['customScheduled']);   // scheduled posts use customScheduled only
+  await need('PostStatus', ['draft', 'scheduled']);
   const asset = await gql(TYPE, { n: 'Asset' });
   if (asset.__type) console.log('info    Asset (' + asset.__type.kind + ') fields: ' + names(asset.__type).join(', '));
   const i = process.argv.indexOf('--channels');

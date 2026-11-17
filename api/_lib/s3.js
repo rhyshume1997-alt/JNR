@@ -97,6 +97,11 @@ function storageCfg() {
     e.status = 503; e.code = 'not_configured';
     throw e;
   }
+  if (c.privateBucket === c.publicBucket) {
+    const e = new Error('S3_BUCKET_PRIVATE and S3_BUCKET_PUBLIC must be two different buckets.');
+    e.status = 503; e.code = 'not_configured';
+    throw e;
+  }
   return c;
 }
 

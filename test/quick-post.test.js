@@ -136,6 +136,69 @@ describe('one-click save to a Buffer draft (database, fake Buffer)', { skip: SKI
     });
   });
 
+  describe('scheduling (opt-in, admin only, confirmed, future, scheduled mode only, read back)', () => {
+    const inHours = (h) => new Date(Date.now() + h * 3600 * 1000).toISOString();
+    const sched = (client, id, at, extra) => save(client, id, Object.assign({ schedule_at: at, confirm_schedule_at: at }, extra || {}));
+    it('schedules for the confirmed time: one scheduled post, mode customScheduled, never post-now or queue, read back and verified', async () => {
+      const id = await newEntry(john, {}, 2); const at = inHours(48);
+      const r = await sched(john, id, at);
+      assert.strictEqual(r.status, 200, JSON.stringify(r.data)); assert.strictEqual(r.data.status, 'published'); assert.strictEqual(r.data.scheduled_for, new Date(at).toISOString());
+      assert.deepStrictEqual(r.data.results.map((x) => [x.destination, x.status]), [['linkedin', 'verified']]);
+      assert.strictEqual(posts().length, 1); const p = posts()[0];
+      assert.strictEqual(p.status, 'scheduled'); assert.strictEqual(p.dueAt, new Date(at).toISOString()); assert.strictEqual(p.assets.length, 2);
+      const input = creates()[0].variables.input; assert.strictEqual(input.mode, 'customScheduled'); assert.strictEqual(input.saveToDraft, false); assert.strictEqual(input.dueAt, new Date(at).toISOString());
+      assert.ok(!['shareNow', 'shareNext', 'addToQueue', 'recommendedTime'].includes(input.mode));
+      assert.ok(buf.state.calls.some((c) => !/createPost/.test(c.query)), 'read back from Buffer');
+      const actions = (await query("select action, detail from audit_log where entry_id = $1 order by id", [id])).rows;
+      for (const want of ['buffer_schedule_requested', 'buffer_scheduled_created', 'buffer_scheduled_verified']) assert.ok(actions.some((a) => a.action === want), 'missing ' + want);
+      assert.ok(actions.some((a) => a.detail && a.detail.scheduled_for === new Date(at).toISOString()), 'the audit record carries the time');
+    });
+    it('without a schedule it is still a plain draft (the default)', async () => {
+      const id = await newEntry(john); await save(john, id);
+      assert.strictEqual(posts()[0].status, 'draft'); assert.strictEqual(creates()[0].variables.input.saveToDraft, true);
+    });
+    it('needs the time to be confirmed: no confirmation, or a different time, sends nothing to Buffer', async () => {
+      const id = await newEntry(john); const at = inHours(48);
+      for (const body of [{ schedule_at: at }, { schedule_at: at, confirm_schedule_at: inHours(49) }, { schedule_at: at, confirm_schedule_at: 'nope' }]) {
+        const r = await save(john, id, body); assert.strictEqual(r.status, 422, JSON.stringify(r.data)); assert.strictEqual(r.data.error, 'confirm_required');
+      }
+      assert.strictEqual(creates().length, 0); assert.strictEqual((await query('select status from entries where id = $1', [id])).rows[0].status, 'draft');
+    });
+    it('refuses a time in the past, less than 5 minutes ahead, over a year ahead, or without a time zone; nothing is sent', async () => {
+      const id = await newEntry(john);
+      for (const at of [inHours(-1), inHours(0.05), inHours(24 * 400), '2031-01-01T09:00', 'tomorrow', '2031-02-30T09:00:00Z']) {
+        const r = await sched(john, id, at); assert.strictEqual(r.status, 422, at + ' ' + JSON.stringify(r.data));
+      }
+      assert.strictEqual(creates().length, 0);
+    });
+    it('is admin only: an editor is refused, and nothing is changed or sent', async () => {
+      const id = await newEntry(editor); const at = inHours(48);
+      const r = await sched(editor, id, at); assert.strictEqual(r.status, 403); assert.strictEqual(r.data.error, 'admin_only');
+      assert.strictEqual(creates().length, 0); assert.ok(!(await query('select caption from entries where id = $1', [id])).rows[0].caption, 'nothing was saved');
+    });
+    it('a staff member cannot slip a schedule in through the entry itself: the dashboard publish button only ever makes a draft', async () => {
+      const id = await newEntry(work, {}); await work.post('/entries/' + id + '/submit');
+      const pr = await john.patch('/entries/' + id, { caption: CAPTION, destinations: { website: false, linkedin: true, schedule_at: inHours(48) } }); assert.strictEqual(pr.status, 200, JSON.stringify(pr.data));
+      assert.ok(!('schedule_at' in (pr.data.entry.destinations || {})), 'a schedule is never stored in the entry'); const img = (await john.get('/entries/' + id)).data.images; for (const i of img) await john.patch('/images/' + i.id, { cleared_for_public: true });
+      const ap = await john.post('/entries/' + id + '/approve', {}); assert.strictEqual(ap.status, 200, JSON.stringify(ap.data)); const pub = await john.post('/entries/' + id + '/publish', {});
+      assert.strictEqual(pub.status, 200, JSON.stringify(pub.data)); assert.strictEqual(posts()[0].status, 'draft'); assert.strictEqual(creates()[0].variables.input.saveToDraft, true);
+    });
+    it('does not create a second post next to one already in Buffer, even if the post was edited; nothing is changed', async () => {
+      const id = await newEntry(john); await save(john, id);                       // a draft is already in Buffer
+      const r = await sched(john, id, inHours(48), { caption: CAPTION + ' Edited.' });
+      assert.strictEqual(r.status, 409); assert.strictEqual(r.data.error, 'already_in_buffer'); assert.strictEqual(posts().length, 1); assert.strictEqual(posts()[0].status, 'draft');
+      assert.strictEqual((await query('select caption from entries where id = $1', [id])).rows[0].caption, CAPTION, 'the entry was not changed either');
+      const id2 = await newEntry(john); assert.strictEqual((await sched(john, id2, inHours(48))).status, 200);
+      const again = await sched(john, id2, inHours(72)); assert.strictEqual(again.status, 409); assert.strictEqual(posts().length, 2);
+    });
+    it('if Buffer holds the post for a different time or as sent, the read-back fails and says so (never shown as scheduled)', async () => {
+      const id = await newEntry(john); buf.state.mutate = (p) => { p.dueAt = new Date(Date.now() + 5 * 24 * 3600 * 1000).toISOString(); };
+      try { const r = await sched(john, id, inHours(48)); assert.strictEqual(r.data.status, 'failed'); assert.match(JSON.stringify(r.data.results), /not the time that was confirmed/); } finally { buf.state.mutate = null; }
+      const id2 = await newEntry(john); buf.state.mutate = (p) => { p.status = 'sent'; p.sentAt = new Date().toISOString(); };
+      try { const r = await sched(john, id2, inHours(48)); assert.strictEqual(r.data.status, 'failed'); assert.match(JSON.stringify(r.data.results), /sent/); } finally { buf.state.mutate = null; }
+    });
+  });
+
   it('the list shows who sent each item, so John can see what is waiting for him', async () => {
     const id = await newEntry(work, { title: 'Waiting item' }); await work.post('/entries/' + id + '/submit');
     const list = (await john.get('/entries?status=pending_approval')).data.entries; const mine = list.find((e) => e.id === id);

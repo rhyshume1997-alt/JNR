@@ -71,15 +71,19 @@
       el.instr, el.gen, el.ai,
       h('label', { for: 'p-caption', text: 'Your post (edit it as much as you like)' }), el.caption, el.count);
 
-    // 4. save
-    el.web = h('input', { type: 'checkbox', id: 'p-web' });
-    el.save = h('button', { type: 'button', class: 'big', id: 'p-save', text: liOn ? 'Save as LinkedIn draft in Buffer' : 'Buffer is not connected yet', disabled: !liOn, onclick: save });
+    // 4. save: a Buffer draft by default; an admin can opt in to scheduling, which needs a second confirmation
+    var isAdmin = me.role === 'admin';
+    el.sched = h('input', { type: 'checkbox', id: 'p-sched', disabled: !liOn, onchange: function () { el.when.classList.toggle('hidden', !el.sched.checked); el.save.textContent = el.sched.checked ? 'Review and schedule' : 'Save as LinkedIn draft in Buffer'; el.confirm.textContent = ''; } });
+    el.when = h('div', { class: 'hidden', id: 'p-when' }, h('label', { for: 'p-when-input', text: 'Date and time (UK time)' }), h('input', { type: 'datetime-local', id: 'p-when-input' }));
+    el.confirm = h('div', { id: 'p-confirm', 'aria-live': 'polite' });
+    el.save = h('button', { type: 'button', class: 'big', id: 'p-save', text: liOn ? 'Save as LinkedIn draft in Buffer' : 'Buffer is not connected yet', disabled: !liOn, onclick: review });
     el.ack = h('div', { id: 'p-ack' });
     el.result = h('div', { id: 'p-result', 'aria-live': 'polite' });
     var saveCard = h('div', { class: 'card' }, h('h2', { text: '4. Save it' }),
-      h('label', { class: 'check' }, el.web, h('span', { text: 'Also put it on our website (the Our Work page). Separate from LinkedIn.' })),
-      el.ack, el.save,
-      h('div', { class: 'hint', text: 'This only saves a draft in Buffer. Nothing is posted or scheduled: you press Post in Buffer yourself.' }),
+      el.ack,
+      isAdmin ? h('label', { class: 'check' }, el.sched, h('span', { text: 'Schedule it for a date and time instead of leaving a draft.' })) : null, el.when,
+      el.save, el.confirm,
+      h('div', { class: 'hint', text: 'Saved as a draft, nothing is posted or scheduled: you press Post or Schedule in Buffer yourself. If you choose to schedule, you will be asked to confirm the exact time first.' }),
       el.result);
 
     app.appendChild(el.msg);
@@ -196,8 +200,45 @@
     } catch (e) { fail(e); }
   }
 
-  // ---------- save as a Buffer draft
-  async function save() {
+  // ---------- UK time helpers (the page always means UK time, whatever the phone's own clock says)
+  function ukParts(ms) {
+    var p = {}; new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      .formatToParts(new Date(ms)).forEach(function (x) { p[x.type] = x.value; });
+    return p;
+  }
+  function ukOffset(ms) { var p = ukParts(ms); return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - Math.floor(ms / 1000) * 1000; }
+  function ukToIso(local) {            // 'YYYY-MM-DDTHH:mm' typed as UK time -> UTC ISO, or null if that time does not exist
+    var m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)$/.exec(local || ''); if (!m) return null;
+    var guess = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+    var ms = guess - ukOffset(guess); ms = guess - ukOffset(ms);
+    var back = ukParts(ms);
+    if (back.year + '-' + back.month + '-' + back.day + 'T' + back.hour + ':' + back.minute !== local) return null;
+    return new Date(ms).toISOString();
+  }
+  function ukText(iso) {
+    return new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso)).replace(',', '') + ' (UK time)';
+  }
+
+  // ---------- the save button: a draft saves at once; scheduling first asks "are you sure?" with the exact time
+  function review() {
+    el.confirm.textContent = ''; el.result.textContent = '';
+    if (!el.sched || !el.sched.checked) return save(null);
+    var iso = ukToIso(document.getElementById('p-when-input').value);
+    if (!iso) return say('Pick a date and time (UK time).', 'bad');
+    if (new Date(iso).getTime() < Date.now() + 5 * 60 * 1000) return say('Pick a time at least 5 minutes from now.', 'bad');
+    if (el.title.value.trim().length < 3) return say('Give the job a short name first (at least 3 letters).', 'bad');
+    if (!el.caption.value.trim()) return say('Write or generate the post first.', 'bad');
+    if (S.images.length && !el.check.checked) return say('Please tick that you have checked the photos.', 'bad');
+    say('');
+    el.confirm.appendChild(h('div', { class: 'notice warn', role: 'alert' },
+      h('p', { text: 'Schedule this post for ' + ukText(iso) + '?' }),
+      h('p', { class: 'hint', text: 'Buffer will post it to LinkedIn by itself at that time. Nothing is posted now. You can still change or delete it in Buffer.' }),
+      h('button', { type: 'button', class: 'big', id: 'p-confirm-yes', text: 'Yes, schedule it', onclick: function () { el.confirm.textContent = ''; save(iso); } }),
+      h('button', { type: 'button', class: 'ghost', id: 'p-confirm-no', text: 'Cancel', onclick: function () { el.confirm.textContent = ''; } })));
+  }
+
+  // ---------- save as a Buffer draft (or, once confirmed, a scheduled post)
+  async function save(scheduleIso) {
     el.result.textContent = ''; el.ack.textContent = ''; say('');
     if (el.title.value.trim().length < 3) return say('Give the job a short name first (at least 3 letters).', 'bad');
     if (!el.caption.value.trim()) return say('Write or generate the post first.', 'bad');
@@ -206,13 +247,14 @@
     try {
       await syncFields();
       var r = await call('POST', '/entries/' + S.id + '/save-draft', {
-        caption: el.caption.value, website: el.web.checked, clear_photos: el.check.checked, use_caption_as_summary: S.own,
+        caption: el.caption.value, website: false, clear_photos: el.check.checked, use_caption_as_summary: S.own,
+        schedule_at: scheduleIso || undefined, confirm_schedule_at: scheduleIso || undefined,
         acknowledge: S.ack.filter(function (a) { return a.box.checked; }).map(function (a) { return a.key; }) });
       S.ack = [];
       var lines = [];
       if (r.status === 'published') {
-        lines.push(r.already ? 'This post is already saved in Buffer as a draft.' : 'Saved in Buffer as a draft. Nothing has been posted. Open Buffer and press Post when you are happy with it.');
-        if (el.web.checked && !r.already) lines.push('Website: published.');
+        if (r.scheduled_for) lines.push('Scheduled in Buffer for ' + ukText(r.scheduled_for) + '. Nothing has been posted yet: Buffer will post it at that time. Change or delete it in Buffer if you need to.');
+        else lines.push(r.already ? 'This post is already saved in Buffer as a draft.' : 'Saved in Buffer as a draft. Nothing has been posted. Open Buffer and press Post when you are happy with it.');
         el.result.appendChild(h('div', { class: 'notice ok', role: 'status', text: lines.join(' ') }));
         el.result.appendChild(h('button', { type: 'button', class: 'ghost', id: 'p-another', text: 'Start another post', onclick: reset }));
         try { sessionStorage.removeItem(KEY); } catch (_) { /* ignore */ }
@@ -234,8 +276,8 @@
   function reset() {
     S = { id: null, own: true, images: [], ack: [] };
     try { sessionStorage.removeItem(KEY); } catch (_) { /* ignore */ }
-    el.title.value = ''; el.notes.value = ''; el.caption.value = ''; el.caption.dispatchEvent(new Event('input')); el.web.checked = false; el.check.checked = false; el.instr.value = ''; el.instr.classList.add('hidden');
-    el.ai.textContent = ''; el.result.textContent = ''; el.ack.textContent = ''; say(''); drawPhotos(); window.scrollTo(0, 0);
+    el.title.value = ''; el.notes.value = ''; el.caption.value = ''; el.caption.dispatchEvent(new Event('input')); el.check.checked = false; el.instr.value = ''; el.instr.classList.add('hidden');
+    el.ai.textContent = ''; el.result.textContent = ''; el.ack.textContent = ''; el.confirm.textContent = ''; if (el.sched) { el.sched.checked = false; el.when.classList.add('hidden'); document.getElementById('p-when-input').value = ''; el.save.textContent = 'Save as LinkedIn draft in Buffer'; } say(''); drawPhotos(); window.scrollTo(0, 0);
   }
 
   // ---------- open something already there (a colleague's update, or an unfinished post)
@@ -245,7 +287,7 @@
       S = { id: e.id, own: e.created_by === me.id, images: d.images || [], ack: [] };
       try { sessionStorage.setItem(KEY, S.id); } catch (_) { /* ignore */ }
       el.title.value = e.title || ''; el.notes.value = e.rough_notes || ''; el.caption.value = e.caption || ''; el.caption.dispatchEvent(new Event('input'));
-      el.web.checked = !!(e.destinations && e.destinations.website); el.check.checked = false; el.ai.textContent = ''; el.result.textContent = ''; el.ack.textContent = '';
+      el.check.checked = false; el.ai.textContent = ''; el.result.textContent = ''; el.ack.textContent = ''; el.confirm.textContent = '';
       if (e.caption) el.instr.classList.remove('hidden');
       drawPhotos();
       if (!quiet) { say(S.own ? 'Opened your post.' : 'Opened an update from a colleague. Check it, write or edit the post, then save it.', 'ok'); window.scrollTo(0, 0); }

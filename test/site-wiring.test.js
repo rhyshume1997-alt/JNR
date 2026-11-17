@@ -13,12 +13,12 @@ const pages = ['index.html', 'about.html', 'services.html', 'quote.html', 'priva
   'capabilities/materials.html', 'capabilities/cnc-milling.html', 'capabilities/cnc-turning.html', 'capabilities/prototypes.html', 'capabilities/batch-production.html'];
 
 describe('site wiring', () => {
-  it('links Our Work from the nav, mobile menu and footer of every existing page', () => {
+  it('has no public Our Work menu link in the nav, mobile menu or footer of any existing page (the gallery is not offered)', () => {
     for (const p of pages) {
       const h = read(p);
-      assert.match(h, /<li><a id="nl-work" href="\/our-work">Our Work<\/a><\/li>/, p + ' nav');
-      assert.match(h.match(/<div class="mobile-menu"[\s\S]*?<\/div>/)[0], /href="\/our-work"/, p + ' mobile');
-      assert.match(h.match(/<div class="foot-h">Site<\/div>[\s\S]*?<\/ul>/)[0], /href="\/our-work"/, p + ' footer');
+      assert.ok(!/id="nl-work"/.test(h), p + ' nav');
+      assert.ok(!/href="\/our-work"/.test(h.match(/<div class="mobile-menu"[\s\S]*?<\/div>/)[0]), p + ' mobile');
+      assert.ok(!/href="\/our-work"/.test(h.match(/<div class="foot-h">Site<\/div>[\s\S]*?<\/ul>/)[0]), p + ' footer');
     }
   });
   it('routes the new pages, feed and sitemap to the public function and the admin API to the admin function', () => {

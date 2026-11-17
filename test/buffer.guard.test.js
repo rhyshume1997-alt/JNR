@@ -44,3 +44,29 @@ describe('Buffer draft-only guard', () => {
     cases.forEach(([patch, re]) => { const v = B.verifyDraft(Object.assign({}, good, patch), want); assert.strictEqual(v.ok, false); assert.match(v.problems.join(' '), re); });
   });
 });
+
+describe('Buffer scheduled-post guard (opt-in path)', () => {
+  const at = (h) => new Date(Date.now() + h * 3600 * 1000).toISOString();
+  it('builds customScheduled inputs with a UTC time, never a draft flag, queue or post-now', () => {
+    const i = B.scheduleInput({ channelId: ch, text: 'Hi', imageUrls: ['https://m/x.jpg'], altTexts: ['alt'], dueAt: at(24) });
+    assert.strictEqual(i.mode, 'customScheduled'); assert.strictEqual(i.saveToDraft, false); assert.ok(/Z$/.test(i.dueAt));
+  });
+  it('refuses anything that could post straight away or is not a future UTC time', () => {
+    const ok = { channelId: ch, text: 'x', saveToDraft: false, mode: 'customScheduled', dueAt: at(24) };
+    assert.doesNotThrow(() => B.assertScheduleOnly(ok));
+    [{ mode: 'shareNow' }, { mode: 'shareNext' }, { mode: 'addToQueue' }, { mode: 'recommendedTime' }, { mode: undefined }, { saveToDraft: true }, { saveToDraft: undefined },
+      { dueAt: undefined }, { dueAt: at(-1) }, { dueAt: at(0.01) }, { dueAt: at(24 * 400) }, { dueAt: '2031-01-01T09:00:00+01:00' }, { dueAt: '2031-01-01' }, { channelId: 'nope' }]
+      .forEach((bad) => assert.throws(() => B.assertScheduleOnly(Object.assign({}, ok, bad)), /Refusing/, JSON.stringify(bad)));
+  });
+  it('the draft path still refuses a scheduled input, and createScheduled refuses before any network call', async () => {
+    assert.throws(() => B.assertDraftOnly({ channelId: ch, text: 'x', saveToDraft: true, dueAt: at(24) }), /Refusing/);
+    await assert.rejects(() => B.createScheduled({ channelId: ch, text: 'x', saveToDraft: false, mode: 'shareNow', dueAt: at(24) }), /Refusing/);
+  });
+  it('verifies status, time, sent state, caption, channel and images', () => {
+    const dueAt = at(24); const want = { channelId: ch, text: 'Hi', imageUrls: ['https://m/1.jpg'], dueAt };
+    const good = { status: 'scheduled', dueAt, sentAt: null, channelId: ch, text: 'Hi', assets: [{ type: 'image', source: 'https://m/1.jpg' }] };
+    assert.strictEqual(B.verifyScheduled(good, want).ok, true);
+    [[{ status: 'draft' }, /status/], [{ status: 'sent', sentAt: '2027-01-01' }, /status|sent/], [{ dueAt: at(30) }, /time/], [{ dueAt: null }, /time/], [{ text: 'Other' }, /caption/], [{ channelId: 'b'.repeat(24) }, /channel/], [{ assets: [] }, /image/]]
+      .forEach(([patch, re]) => { const v = B.verifyScheduled(Object.assign({}, good, patch), want); assert.strictEqual(v.ok, false, JSON.stringify(patch)); assert.match(v.problems.join(' '), re); });
+  });
+});

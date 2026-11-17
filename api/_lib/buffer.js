@@ -1,8 +1,10 @@
 'use strict';
 
 // Buffer GraphQL client (server side only). The token never leaves the server.
-// Hard rule enforced here, not just in the UI: this module can only create DRAFTS. It refuses any input that would
-// schedule or publish, so a bug elsewhere cannot post to LinkedIn.
+// Hard rule enforced here, not just in the UI: the draft path (draftInput / createDraft) can only create DRAFTS and refuses any input that
+// would schedule or publish. A separate, opt-in path (scheduleInput / createScheduled) can create a post scheduled for a FUTURE time
+// (mode customScheduled with dueAt, at least 2 minutes ahead). It refuses shareNow, shareNext, the queue and recommended times, so nothing
+// can be posted straight away. A post is only ever scheduled after an admin confirms the exact time on the /post page.
 //
 // Checked against Buffer's API reference (https://developers.buffer.com/reference.html), the create-draft example and the
 // error-handling and hosting-media guides on 2026-11-15: createPost(input: CreatePostInput!) with saveToDraft, schedulingType
@@ -116,8 +118,40 @@ function assertDraftOnly(input) {
   if (!/^[a-f0-9]{24}$/i.test(String(input.channelId || ''))) throw new Error('Refusing to call Buffer: bad channel id.');
 }
 
+// Scheduled posts: a fixed future time, never "now" or "next in the queue".
+const MIN_AHEAD_MS = 2 * 60 * 1000, MAX_AHEAD_MS = 366 * 24 * 3600 * 1000;
+function scheduleInput({ channelId, text, imageUrls, altTexts, dueAt }) {
+  const input = {
+    channelId, text,
+    schedulingType: 'automatic',
+    mode: 'customScheduled',
+    saveToDraft: false,
+    dueAt,
+    assets: (imageUrls || []).map((url, i) => ({ image: { url, metadata: { altText: (altTexts && altTexts[i]) || '' } } })),
+  };
+  assertScheduleOnly(input);
+  return input;
+}
+
+function assertScheduleOnly(input) {
+  if (!input || input.saveToDraft !== false) throw new Error('Refusing to schedule: saveToDraft must be false for a scheduled post.');
+  if (input.mode !== 'customScheduled') throw new Error('Refusing to schedule: mode ' + input.mode + ' could post straight away. Only customScheduled is allowed.');
+  if (typeof input.dueAt !== 'string' || !/^\d{4}-\d\d-\d\dT[\d:.]+Z$/.test(input.dueAt)) throw new Error('Refusing to schedule: dueAt must be a UTC time like 2027-01-31T09:00:00.000Z.');
+  const ahead = new Date(input.dueAt).getTime() - Date.now();
+  if (!(ahead >= MIN_AHEAD_MS)) throw new Error('Refusing to schedule: the time must be at least 2 minutes in the future.');
+  if (ahead > MAX_AHEAD_MS) throw new Error('Refusing to schedule: more than a year ahead.');
+  if (!/^[a-f0-9]{24}$/i.test(String(input.channelId || ''))) throw new Error('Refusing to call Buffer: bad channel id.');
+}
+
 async function createDraft(input) {
   assertDraftOnly(input);
+  return createPost(input);
+}
+async function createScheduled(input) {
+  assertScheduleOnly(input);
+  return createPost(input);
+}
+async function createPost(input) {
   const data = await withRetries(() => gql(QUERIES.createDraft, { input }), false);
   const r = data && data.createPost;
   if (!r) throw new BufferError('ambiguous', 'Buffer did not say whether the draft was created.');
@@ -151,6 +185,18 @@ function verifyDraft(post, expected) {
   return { ok: problems.length === 0, problems };
 }
 
+// Read-back for a scheduled post: Buffer must hold it as "scheduled" for the time we meant, not sent, not sending, not a draft.
+function verifyScheduled(post, expected) {
+  const problems = [];
+  if (post.status !== 'scheduled') problems.push('Buffer status is "' + post.status + '", expected "scheduled".');
+  if (post.sentAt) problems.push('The post shows as sent.');
+  const got = post.dueAt ? new Date(post.dueAt).getTime() : NaN;
+  if (!Number.isFinite(got) || Math.abs(got - new Date(expected.dueAt).getTime()) > 60 * 1000) problems.push('The scheduled time in Buffer (' + (post.dueAt || 'none') + ') is not the time that was confirmed (' + expected.dueAt + ').');
+  const base = verifyDraft(Object.assign({}, post, { status: 'draft', dueAt: null, sentAt: null }), expected);
+  base.problems.forEach((p) => problems.push(p));
+  return { ok: problems.length === 0, problems };
+}
+
 // ONLY for the staging end-to-end test, to remove the throw-away draft it created. Deliberately narrow: it refuses unless the
 // post is still a draft, is on the expected channel, has no schedule or sent time, and its text contains the unique marker of
 // this test run. It is not used by the website, and the draft-creation path above still cannot publish or schedule.
@@ -174,4 +220,4 @@ async function listChannels(organizationId) {
   return data.channels;
 }
 
-module.exports = { deleteTestDraft, fromGraphqlError, QUERIES, BufferError, draftInput, assertDraftOnly, createDraft, readPost, verifyDraft, listChannels, gql };
+module.exports = { scheduleInput, assertScheduleOnly, createScheduled, verifyScheduled, deleteTestDraft, fromGraphqlError, QUERIES, BufferError, draftInput, assertDraftOnly, createDraft, readPost, verifyDraft, listChannels, gql };

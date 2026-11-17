@@ -62,10 +62,10 @@ async function publishWebsite(user, entry) {
 async function verifyAndRecord(user, entry, pub, expected) {
   try {
     const post = await buffer.readPost(pub.buffer_post_id);
-    const v = buffer.verifyDraft(post, expected);
+    const v = expected.dueAt ? buffer.verifyScheduled(post, expected) : buffer.verifyDraft(post, expected);
     if (v.ok) {
       await setPub(pub.id, { status: 'verified', verified_at: new Date(), last_error: null });
-      await audit(null, user, 'buffer_draft_verified', entry.id, { buffer_post_id: pub.buffer_post_id, images: expected.imageUrls.length });
+      await audit(null, user, expected.dueAt ? 'buffer_scheduled_verified' : 'buffer_draft_verified', entry.id, { buffer_post_id: pub.buffer_post_id, images: expected.imageUrls.length, scheduled_for: expected.dueAt });
       return { destination: 'linkedin', status: 'verified', buffer_post_id: pub.buffer_post_id };
     }
     await setPub(pub.id, { status: 'failed', last_error: 'Read-back check failed: ' + v.problems.join(' ') });
@@ -78,15 +78,18 @@ async function verifyAndRecord(user, entry, pub, expected) {
   }
 }
 
-async function publishLinkedIn(user, entry) {
+// `opts.scheduleAt` (a UTC ISO time) is set only by the confirmed schedule step on the /post page; every other caller makes a draft.
+async function publishLinkedIn(user, entry, opts) {
   const snap = entry.approved_snapshot;
   if (!getConfig().buffer.enabled) return { destination: 'linkedin', status: 'failed', error: 'LinkedIn drafts are switched off on this site.' };
   let channelId;
   try { channelId = linkedinChannel(); } catch (e) { return { destination: 'linkedin', status: 'failed', error: e.message }; }
   const imageUrls = snap.images.map((i) => i.url);
   const altTexts = snap.images.map((i) => i.alt);
-  const hash = sha(JSON.stringify([channelId, snap.caption, imageUrls]));
-  const expected = { channelId, text: snap.caption, imageUrls };
+  const dueAt = opts && opts.scheduleAt ? opts.scheduleAt : null;
+  if (dueAt && !(new Date(dueAt).getTime() - Date.now() >= 2 * 60 * 1000)) return { destination: 'linkedin', status: 'failed', error: 'The scheduled time has passed or is too close. Pick a new time.' };
+  const hash = sha(JSON.stringify(dueAt ? [channelId, snap.caption, imageUrls, dueAt] : [channelId, snap.caption, imageUrls]));
+  const expected = { channelId, text: snap.caption, imageUrls, dueAt };
   let pub = await beginLinkedIn(entry, channelId, hash);
 
   if (pub.status === 'verified') return { destination: 'linkedin', status: 'verified', buffer_post_id: pub.buffer_post_id, unchanged: true };
@@ -103,12 +106,13 @@ async function publishLinkedIn(user, entry) {
     return { destination: 'linkedin', status: 'uncertain', error: 'An earlier attempt stopped part way.', publication_id: pub.id };
   }
   pub = claim.rows[0];
-  await audit(null, user, 'buffer_draft_requested', entry.id, { channel_id: channelId, attempt: pub.attempts });
+  await audit(null, user, dueAt ? 'buffer_schedule_requested' : 'buffer_draft_requested', entry.id, { channel_id: channelId, attempt: pub.attempts, scheduled_for: dueAt || undefined });
   try {
-    const post = await buffer.createDraft(buffer.draftInput({ channelId, text: snap.caption, imageUrls, altTexts }));
+    const post = dueAt ? await buffer.createScheduled(buffer.scheduleInput({ channelId, text: snap.caption, imageUrls, altTexts, dueAt }))
+      : await buffer.createDraft(buffer.draftInput({ channelId, text: snap.caption, imageUrls, altTexts }));
     await setPub(pub.id, { status: 'saved', buffer_post_id: post.id, last_error: null });
     pub.buffer_post_id = post.id;
-    await audit(null, user, 'buffer_draft_created', entry.id, { buffer_post_id: post.id });
+    await audit(null, user, dueAt ? 'buffer_scheduled_created' : 'buffer_draft_created', entry.id, { buffer_post_id: post.id, scheduled_for: dueAt || undefined });
     return verifyAndRecord(user, entry, pub, expected);
   } catch (e) {
     if (e instanceof buffer.BufferError && e.kind === 'ambiguous') {
@@ -124,8 +128,8 @@ async function publishLinkedIn(user, entry) {
   }
 }
 
-// Publishes an approved entry to its chosen destinations. LinkedIn only ever gets a DRAFT in Buffer.
-async function publishEntry(user, id) {
+// Publishes an approved entry to its chosen destinations. LinkedIn gets a DRAFT in Buffer, unless the confirmed schedule step passes `scheduleAt`.
+async function publishEntry(user, id, opts) {
   const entry = await getSnapshotRow(id);
   if (!['approved', 'failed'].includes(entry.status) || !entry.approved_snapshot) {
     throw new HttpError(409, 'bad_transition', 'Only approved entries can be published.');
@@ -134,7 +138,7 @@ async function publishEntry(user, id) {
   const results = [];
   if (dests.website) results.push(await publishWebsite(user, entry));
   // With LinkedIn switched off (a website-only launch) nothing goes to Buffer and the confirmation says LinkedIn was not selected.
-  if (dests.linkedin && getConfig().buffer.enabled) results.push(await publishLinkedIn(user, entry));
+  if (dests.linkedin && getConfig().buffer.enabled) results.push(await publishLinkedIn(user, entry, opts));
   const allOk = results.length > 0 && results.every((r) => r.status === 'verified');
   const to = allOk ? 'published' : 'failed';
   await tx(async (client) => {

@@ -409,10 +409,10 @@ describe('browser tests', { skip: SKIP }, () => {
       await p.waitForFunction(() => document.querySelectorAll('#p-photos img').length === 1);
       assert.ok(await p.locator('#p-ai-off').count() === 1, 'AI is off so the page says so');
       await p.click('#p-gen'); await p.waitForFunction(() => document.querySelector('#p-caption').value.length > 20);
-      await p.check('#p-check'); const before = buf.state.posts.size; await p.check('#p-web'); await p.click('#p-save'); await p.waitForSelector('#p-result .notice.ok');
+      await p.check('#p-check'); const before = buf.state.posts.size; assert.strictEqual(await p.locator('#p-web').count(), 0, 'no website tick on this page'); await p.click('#p-save'); await p.waitForSelector('#p-result .notice.ok');
       assert.strictEqual(buf.state.posts.size, before + 1);
       const e = (await dbq("select status, destinations from entries where title = 'Staff sent update'")).rows[0];
-      assert.strictEqual(e.status, 'published'); assert.strictEqual(e.destinations.website, true);
+      assert.strictEqual(e.status, 'published'); assert.strictEqual(e.destinations.website, false, 'nothing goes to the website from this page');
       await c.close();
     });
     it('a "tolerance" warning can be ticked and the post is then written (tick-then-generate)', async () => {
@@ -427,6 +427,37 @@ describe('browser tests', { skip: SKIP }, () => {
       await p.check('#p-ai input[type=checkbox]'); await p.click('#p-gen'); await p.waitForSelector('#p-ai .notice.ok');
       assert.match(await p.inputValue('#p-caption'), /stainless brackets/i); assert.ok(fake.state.calls.length >= 1);
       await c.close(); aiOff();
+    });
+    it('John can schedule: opt-in, UK time, a separate confirm step, Cancel sends nothing, Buffer gets a scheduled post (not a draft, not post-now)', async () => {
+      aiOn(); fake.state.rawQueue = []; fake.state.rawContent = null;
+      const ukLocal = (ms) => { const q = {}; new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).formatToParts(new Date(ms)).forEach((x) => { q[x.type] = x.value; }); return q.year + '-' + q.month + '-' + q.day + 'T' + q.hour + ':' + q.minute; };
+      const when = ukLocal(Date.now() + 3 * 24 * 3600 * 1000 + 3600 * 1000);
+      const c = await ctx('desktop'); const p = await page(c, 'post-schedule');
+      await signIn(p, '/post', 'admin@jnr.test'); await p.waitForSelector('#p-title');
+      assert.strictEqual(await p.locator('#p-web').count(), 0); assert.ok(!(await p.isVisible('#p-when')), 'scheduling is off until asked for');
+      assert.match(await p.locator('#p-save').innerText(), /Save as LinkedIn draft/);
+      await p.fill('#p-title', 'Scheduled bracket run'); await p.fill('#p-notes', 'Made a run of brackets for a boat builder.');
+      await p.setInputFiles('#p-file', [photos[0]]); await p.waitForFunction(() => document.querySelectorAll('#p-photos img').length === 1, null, { timeout: 30000 });
+      await p.fill('#p-caption', 'We made a run of brackets for a boat builder this week.'); await p.check('#p-check');
+      const before = buf.state.posts.size;
+      await p.check('#p-sched'); assert.ok(await p.isVisible('#p-when')); assert.match(await p.locator('#p-save').innerText(), /Review and schedule/);
+      await p.click('#p-save'); await p.waitForSelector('#p-msg .notice.bad'); assert.match(await p.locator('#p-msg').innerText(), /Pick a date and time/);
+      await p.fill('#p-when-input', '2020-01-01T09:00'); await p.click('#p-save'); await p.waitForSelector('#p-msg .notice.bad'); assert.match(await p.locator('#p-msg').innerText(), /at least 5 minutes/);
+      await p.fill('#p-when-input', when); await p.click('#p-save'); await p.waitForSelector('#p-confirm-yes');
+      assert.match(await p.locator('#p-confirm').innerText(), /Schedule this post for .*\(UK time\)\?/); assert.match(await p.locator('#p-confirm').innerText(), /Nothing is posted now/);
+      assert.strictEqual(buf.state.posts.size, before, 'nothing is sent before the confirmation');
+      await p.click('#p-confirm-no'); assert.strictEqual(await p.locator('#p-confirm-yes').count(), 0); assert.strictEqual(buf.state.posts.size, before, 'Cancel sends nothing');
+      await p.click('#p-save'); await p.click('#p-confirm-yes'); await p.waitForSelector('#p-result .notice.ok');
+      assert.match(await p.locator('#p-result').innerText(), /Scheduled in Buffer for .*\(UK time\)\. Nothing has been posted yet/);
+      assert.strictEqual(buf.state.posts.size, before + 1); const post = [...buf.state.posts.values()].pop();
+      assert.strictEqual(post.status, 'scheduled'); assert.strictEqual(ukLocal(new Date(post.dueAt).getTime()), when, 'the time Buffer holds is the UK time that was typed');
+      const input = buf.state.calls.filter((x) => /createPost/.test(x.query)).pop().variables.input; assert.strictEqual(input.mode, 'customScheduled'); assert.strictEqual(input.saveToDraft, false);
+      await noOverflow(p); await c.close(); aiOff();
+    });
+    it('an editor does not see the schedule option; a draft is still the default there', async () => {
+      const c = await ctx('desktop'); const p = await page(c, 'post-editor');
+      await signIn(p, '/post', 'editor@jnr.test'); await p.waitForSelector('#p-title');
+      assert.strictEqual(await p.locator('#p-sched').count(), 0); assert.match(await p.locator('#p-save').innerText(), /Save as LinkedIn draft/); await c.close();
     });
     it('is usable on a phone and shows a blocked AI request in plain words', async () => {
       aiOn();
