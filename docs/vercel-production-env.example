@@ -26,3 +26,6 @@ LINKEDIN_ENABLED=false
 # --- Never set in production ---------------------------------------------------------------------------------------------
 # DEPLOY_ENV (staging marker), BUFFER_STAGING_CHANNEL_ID, ALLOW_INSECURE_COOKIES, DATABASE_SSL_VERIFY=false,
 # AI_CAPTIONS_ENABLED, TOLRA_ENABLED (Tolra stays disabled).
+
+# --- AI-written posts: OFF in production until separately approved (AI_CAPTIONS_ENABLED unset = off, no key needed) ---
+# ANTHROPIC_API_KEY (Sensitive), AI_CAPTIONS_ENABLED, AI_*_LIMIT: add only after approval, with a provider spend limit set first.

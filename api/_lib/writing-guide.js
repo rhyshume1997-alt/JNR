@@ -19,7 +19,7 @@ const LIMITS = { style: 4000, line: 600, name: 60, blurb: 300, signOff: 300, nev
 const DEFAULT_GUIDE = {
   brands: [
     { id: 'jnr', name: 'J.N.R. Engineering', note: '' },
-    { id: 'marpet', name: 'Marpet', note: 'Edit this line to say, in a few plain words, what Marpet does. It is only used if you fill it in.' },
+    { id: 'marpet', name: 'Marpet', note: 'Marpet is a fabrication company and the sister company of J.N.R. Engineering.' },
   ],
   style:
     'You are writing a LinkedIn post for John, who posts for the workshop. It is for a business audience: customers, other makers, suppliers and people who like seeing well-made things.\n' +
@@ -91,6 +91,7 @@ function validate(input) {
   })).filter((e) => e.text);
   for (const k of ['style', 'length', 'emoji', 'hashtags', 'customers', 'photos']) assertNoConfidentialText(out[k], 'The "' + k + '" text');
   assertNoConfidentialText(out.sign_off.text, 'The sign-off');
+  out.brands.forEach((b) => assertNoConfidentialText(b.name + ' ' + b.note, 'The company "' + b.name + '"'));
   out.never_say.forEach((s) => assertNoConfidentialText(s, 'A "never say" line'));
   out.examples.forEach((e) => assertNoConfidentialText(e.text, 'The example "' + e.title + '"'));
   return out;

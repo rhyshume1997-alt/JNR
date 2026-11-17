@@ -34,7 +34,7 @@
       tabs.appendChild(h('button', { 'aria-pressed': String(state.status === t[0]), text: t[1] + ' (' + n + ')', onclick: function () { state.status = t[0]; showList(); } }));
     });
     var search = h('input', { type: 'text', value: state.q, placeholder: 'Search title or description', 'aria-label': 'Search', onkeydown: function (e) { if (e.key === 'Enter') { state.q = search.value; showList(); } } });
-    var nav = h('div', { class: 'row' }, h('div', { class: 'grow' }, search), isAdmin() ? h('button', { class: 'ghost', text: 'Users', onclick: showUsers }) : null);
+    var nav = h('div', { class: 'row' }, h('div', { class: 'grow' }, search), isEditor() ? h('button', { class: 'ghost', id: 'guide-btn', text: 'Writing guide', onclick: showGuide }) : null, isAdmin() ? h('button', { class: 'ghost', text: 'Users', onclick: showUsers }) : null);
     var list = h('div', { class: 'list' });
     if (!data.entries.length) list.appendChild(h('p', { class: 'notice', text: 'Nothing here yet.' }));
     data.entries.forEach(function (e) {
@@ -87,13 +87,62 @@
     // caption
     var cap = h('textarea', { id: 'f-caption', disabled: !canEdit || !isEditor() }); cap.value = e.caption || '';
     var capCount = h('div', { class: 'cap-count' }); var upd = function () { capCount.textContent = cap.value.length + ' characters'; }; cap.oninput = upd; upd();
+    var aiOn = !!(meta.features.ai_captions && isEditor() && canEdit);
+    var gi = null; if (aiOn) { try { gi = await call('GET', '/writing-guide'); } catch (er) { gi = null; } }
+    var aiOut = h('div', { id: 'ai-out', 'aria-live': 'polite' });
+    var aiBrand = null, aiSign = null, aiInstr = null, aiBtn = null, aiAcks = [];
+    if (aiOn && gi) {
+      var brands = gi.guide.brands || [];
+      aiBrand = brands.length > 1 ? h('select', { id: 'ai-brand', 'aria-label': 'Post as' }, brands.map(function (b) { return h('option', { value: b.id, text: 'Post as ' + b.name }); })) : null;
+      var so = gi.guide.sign_off || {};
+      aiSign = so.text ? h('input', { type: 'checkbox', id: 'ai-sign', checked: so.use_by_default === true }) : null;
+      aiInstr = h('input', { type: 'text', id: 'ai-instr', maxlength: '200', placeholder: 'Optional: change it, for example "make it shorter"', 'aria-label': 'Change it' });
+    }
+    var aiRun = async function () {
+      aiOut.textContent = ''; aiBtn.disabled = true; var label = aiBtn.textContent; aiBtn.textContent = 'Writing…';
+      try {
+        await saveFields(true, { keepCaption: true });   // the job notes you just typed are saved first; the caption box is left alone
+        var r = await call('POST', '/entries/' + id + '/ai-caption', {
+          brand: aiBrand ? aiBrand.value : undefined, sign_off: aiSign ? aiSign.checked : undefined, instruction: aiInstr.value || undefined, acknowledge: aiAcks.filter(function (a) { return a.box.checked; }).map(function (a) { return a.key; }) });
+        var d = r, usage = d.usage ? ' You have used ' + d.usage.user_today + ' of ' + d.usage.user_limit + ' AI drafts today.' : '';
+        aiAcks = [];
+        if (d.status === 'ok') {
+          cap.value = d.caption; upd(); aiBtn.textContent = 'Regenerate';
+          aiOut.appendChild(h('div', { class: 'notice ok', role: 'status', text: 'Draft ready in the box above. Read it, change anything you like, then press Save changes. Nothing is saved or posted until you do.' + usage }));
+        } else if (d.status === 'blocked') {
+          aiBtn.textContent = label;
+          d.findings.forEach(function (fnd) { aiOut.appendChild(h('div', { class: 'notice bad', role: 'alert', text: fnd.message })); });
+          aiOut.appendChild(h('div', { class: 'hint', text: 'Nothing was sent to the AI. Fix this in the job details above, then try again.' }));
+        } else if (d.status === 'needs_acknowledgement') {
+          aiBtn.textContent = label;
+          aiOut.appendChild(h('div', { class: 'notice warn', role: 'alert', text: 'Please check before this goes to the AI:' }));
+          d.warnings.forEach(function (w) { var box = h('input', { type: 'checkbox' }); aiAcks.push({ key: w.key, box: box }); aiOut.appendChild(h('label', { class: 'check' }, box, h('span', { text: w.message + ' I have checked it is OK to share.' }))); });
+          aiOut.appendChild(h('div', { class: 'hint', text: 'Tick each one, then press the button again.' }));
+        } else if (d.status === 'questions') {
+          aiBtn.textContent = label;
+          aiOut.appendChild(h('div', { class: 'notice warn', role: 'status', text: 'There is not quite enough to go on. Add the answers to "Job notes in their own words" above, then try again:' }));
+          d.questions.forEach(function (q) { aiOut.appendChild(h('div', { class: 'hint', text: '• ' + q })); });
+        } else {
+          aiBtn.textContent = label;
+          aiOut.appendChild(h('div', { class: 'notice warn', role: 'alert', text: d.status === 'rejected' ? d.message : d.error }));
+          if (d.fallback) aiOut.appendChild(h('button', { type: 'button', class: 'ghost small', text: 'Use the free template instead', onclick: function () { cap.value = d.fallback; upd(); aiOut.textContent = ''; } }));
+        }
+      } catch (er) {
+        aiBtn.textContent = label;
+        if (er.status === 429 || er.status === 403 || er.status === 503) aiOut.appendChild(h('div', { class: 'notice warn', role: 'alert', text: er.message }));
+        else handleErr(er, say, id);
+      } finally { aiBtn.disabled = false; }
+    };
     var capBox = h('div', { class: 'card' }, h('h3', { text: 'LinkedIn caption' }),
-      h('div', { class: 'hint', text: 'Source: ' + e.caption_source + '. Edit freely. Generated captions only use the job details above.' }), cap, capCount,
+      h('div', { class: 'hint', text: 'Source: ' + e.caption_source + '. Edit freely. Nothing is posted: you approve it, then it is saved as a draft in Buffer.' }), cap, capCount,
+      aiOn && gi ? h('div', { class: 'ai-box' },
+        h('div', { class: 'row' }, aiBrand, aiSign ? h('label', { class: 'check tight' }, aiSign, h('span', { text: 'Add my sign-off' })) : null),
+        aiInstr,
+        h('div', { class: 'row' }, (aiBtn = h('button', { type: 'button', id: 'ai-go', text: e.caption_source === 'ai' || cap.value ? 'Regenerate with AI' : 'Generate with AI', onclick: aiRun }))),
+        aiOut) : null,
       isEditor() && canEdit ? h('div', { class: 'row' },
-        h('button', { class: 'ghost small', type: 'button', text: 'Generate caption', onclick: async function () {
-          try { await saveFields(true); var r = await call('POST', '/entries/' + id + '/caption', { save: true }); await showEntry(id, { kind: r.note ? 'warn' : 'ok', text: r.note || 'Caption generated from the job details (' + r.source + '). Check it, then edit if you want.' }); } catch (er) { handleErr(er, say, id); } } }),
-        meta.features.ai_captions ? h('button', { class: 'ghost small', type: 'button', text: 'Try AI wording', onclick: async function () {
-          try { await saveFields(true); var r = await call('POST', '/entries/' + id + '/caption', { save: true, provider: 'ai' }); await showEntry(id, { kind: r.note ? 'warn' : 'ok', text: r.note || 'AI caption saved (' + r.source + ').' }); } catch (er) { handleErr(er, say, id); } } }) : null) : null);
+        h('button', { class: 'ghost small', type: 'button', text: 'Free template', onclick: async function () {
+          try { await saveFields(true, { keepCaption: true }); var r = await call('POST', '/entries/' + id + '/caption', { save: true }); await showEntry(id, { kind: r.note ? 'warn' : 'ok', text: r.note || 'Caption made from the job details (free template). Check it, then edit if you want.' }); } catch (er) { handleErr(er, say, id); } } })) : null);
 
     // photos
     var photoBox = h('div', { class: 'card' }, h('h3', { text: 'Photos (order = order on site and LinkedIn)' }));
@@ -131,11 +180,11 @@
       if (!any) checks.appendChild(h('p', { class: 'notice ok', text: 'No problems found in the public text.' }));
     }
 
-    async function saveFields(quiet) {
+    async function saveFields(quiet, opts) {
       if (!canEdit) return;
       var body = { version: e.version, kind: kind.value, title: f.title.value, summary: f.summary.value, material: f.material.value, process: f.process.value, stage: stage.value || null, event_date: f.event_date.value || undefined,
         body: f.body.value, is_case_study: caseStudy.checked, customer_name: f.customer_name.value, job_ref: f.job_ref.value, customer_notes: f.customer_notes.value, rough_notes: f.rough_notes.value };
-      if (isEditor()) { body.internal_notes = f.internal_notes.value; body.destinations = { website: destWeb.checked, linkedin: liOn && destLi.checked }; body.caption = cap.value; }
+      if (isEditor()) { body.internal_notes = f.internal_notes.value; body.destinations = { website: destWeb.checked, linkedin: liOn && destLi.checked }; if (!(opts && opts.keepCaption)) body.caption = cap.value; }
       if (isAdmin()) { body.customer_public_ok = custOk.checked; body.customer_public_label = f.customer_public_label.value; }
       var r = await call('PATCH', '/entries/' + id, body); e = r.entry;
       if (!quiet) await showEntry(id, { kind: 'ok', text: r.changed.length ? 'Saved.' : 'Nothing changed.' });
@@ -162,6 +211,7 @@
       try { var r = await call('POST', '/entries/' + id + '/publish'); await showEntry(id, JNR.publishSummary(r)); } catch (er) { handleErr(er, say, id); }
     });
     if (isAdmin() && e.is_live) btn('Take off the website', 'danger', function () { if (confirm('Remove this from the public site?')) act(function () { return call('POST', '/entries/' + id + '/unpublish'); }, 'Taken off the website.'); });
+    if (isEditor() && e.is_live && e.caption) btn('Use as a style example', 'ghost', function () { act(function () { return call('POST', '/entries/' + id + '/style-example'); }, 'Added to the writing guide as a style example.'); });
     btn('Back to list', 'ghost', showList);
 
     var head = h('div', { class: 'row' }, h('h2', { class: 'grow', text: e.title }), pill(e.status), e.is_live ? h('span', { class: 'pill live', text: e.status === 'published' ? 'Live on website' : 'Still live on website' }) : null);
@@ -201,6 +251,75 @@
   }
 
   // ---------- users (admin)
+  // The writing guide: the voice used for AI-written posts. Editors and admins can change it; every save is a version.
+  async function showGuide(banner) {
+    app.textContent = '';
+    var d = await call('GET', '/writing-guide');
+    var g = d.guide, L = d.limits;
+    var msg = h('div'); if (banner) msg.appendChild(h('div', { class: 'notice ' + banner.kind, role: 'status', text: banner.text }));
+    var say = function (text, kind) { msg.textContent = ''; msg.appendChild(h('div', { class: 'notice ' + (kind || 'ok'), role: kind === 'bad' ? 'alert' : 'status', text: text })); msg.scrollIntoView({ block: 'nearest' }); };
+    function ta(id, value, rows, max) { var el = h('textarea', { id: id || null, maxlength: String(max || 4000) }); el.value = value || ''; if (rows) el.style.minHeight = rows + 'px'; return el; }
+    var brandRows = [];
+    var brandBox = h('div');
+    function addBrand(b) {
+      var name = h('input', { type: 'text', maxlength: String(L.name), 'aria-label': 'Company name' }); name.value = b.name || '';
+      var note = h('input', { type: 'text', maxlength: String(L.blurb), 'aria-label': 'One line about the company' }); note.value = b.note || '';
+      var rec = { id: b.id, name: name, note: note };
+      var row = h('div', { class: 'card' }, h('label', { text: 'Company name' }), name, h('label', { text: 'One plain line about what the company does (optional, used in the post)' }), note,
+        h('button', { type: 'button', class: 'ghost small', text: 'Remove', onclick: function () { brandRows.splice(brandRows.indexOf(rec), 1); row.remove(); } }));
+      rec.el = row; brandRows.push(rec); brandBox.appendChild(row);
+    }
+    (g.brands || []).forEach(addBrand);
+    var style = ta('g-style', g.style, 200, L.style);
+    var length = ta('g-length', g.length, 50, L.line), emoji = ta('g-emoji', g.emoji, 50, L.line), hashtags = ta('g-hashtags', g.hashtags, 50, L.line), customers = ta('g-customers', g.customers, 90, L.line), photos = ta('g-photos', g.photos, 90, L.line);
+    var signText = h('input', { type: 'text', id: 'g-signoff', maxlength: String(L.signOff) }); signText.value = (g.sign_off && g.sign_off.text) || '';
+    var signDefault = h('input', { type: 'checkbox', id: 'g-signdefault', checked: !!(g.sign_off && g.sign_off.use_by_default) });
+    var never = ta('g-never', (g.never_say || []).join('\n'), 140, 6000);
+    var exRows = []; var exBox = h('div');
+    function addExample(x) {
+      var title = h('input', { type: 'text', maxlength: String(L.exampleTitle), 'aria-label': 'Example title' }); title.value = x.title || '';
+      var text = ta('', x.text, 90, L.exampleText);
+      var rec = { id: x.id, source: x.source || 'sample', entry_id: x.entry_id, title: title, text: text };
+      var row = h('div', { class: 'card' }, h('div', { class: 'hint', text: rec.source === 'published' ? 'From a real published post' : 'Sample structure (not a real post)' }), h('label', { text: 'Title' }), title, h('label', { text: 'Text' }), text,
+        h('button', { type: 'button', class: 'ghost small', text: 'Remove', onclick: function () { exRows.splice(exRows.indexOf(rec), 1); row.remove(); } }));
+      rec.el = row; exRows.push(rec); exBox.appendChild(row);
+    }
+    (g.examples || []).forEach(addExample);
+    var save = h('button', { type: 'button', class: 'big', id: 'g-save', text: 'Save the writing guide', onclick: async function () {
+      var body = {
+        version: d.version,
+        brands: brandRows.map(function (b) { return { id: b.id, name: b.name.value, note: b.note.value }; }),
+        style: style.value, length: length.value, emoji: emoji.value, hashtags: hashtags.value, customers: customers.value, photos: photos.value,
+        sign_off: { text: signText.value, use_by_default: signDefault.checked },
+        never_say: never.value.split('\n').map(function (x) { return x.trim(); }).filter(Boolean),
+        examples: exRows.map(function (x) { return { id: x.id, source: x.source, entry_id: x.entry_id, title: x.title.value, text: x.text.value }; }),
+      };
+      save.disabled = true;
+      try { var r = await call('PUT', '/writing-guide', body); await showGuide({ kind: 'ok', text: 'Saved as version ' + r.version + '.' }); }
+      catch (er) { if (er.status === 401) { app.textContent = ''; app.appendChild(JNR.loginForm(boot)); } else say(er.message, 'bad'); }
+      finally { save.disabled = false; }
+    } });
+    var hist = h('div', { class: 'card' }, h('h3', { text: 'Earlier versions' }), (d.history || []).length ? null : h('p', { class: 'hint', text: 'Nothing saved yet. This is the first version, written from the answers given when the AI posts were set up.' }));
+    (d.history || []).forEach(function (v) {
+      hist.appendChild(h('div', { class: 'row' }, h('span', { class: 'grow', text: 'Version ' + v.version + ', ' + new Date(v.updated_at).toLocaleString() + (v.updated_by ? ' by ' + v.updated_by : '') }),
+        v.version === d.version ? h('span', { class: 'hint', text: 'current' }) : h('button', { type: 'button', class: 'ghost small', text: 'Restore this version', onclick: async function () { if (confirm('Put version ' + v.version + ' back as a new version?')) { try { await call('POST', '/writing-guide/restore/' + v.version); await showGuide({ kind: 'ok', text: 'Version ' + v.version + ' was put back as a new version.' }); } catch (er) { say(er.message, 'bad'); } } } })));
+    });
+    app.appendChild(h('div', { class: 'row' }, h('h2', { class: 'grow', text: 'Writing guide' }), h('button', { class: 'ghost', text: 'Back', onclick: showList })));
+    app.appendChild(h('p', { class: 'hint', text: 'How the AI writes posts for JNR. Plain English, no code. It never sees customer names or private details, and nothing it writes is posted until you approve it.' }));
+    app.appendChild(msg);
+    app.appendChild(h('div', { class: 'card' }, h('h3', { text: 'Who posts' }), brandBox, h('button', { type: 'button', class: 'ghost small', text: 'Add a company', onclick: function () { if (brandRows.length < L.brands) addBrand({}); } })));
+    app.appendChild(h('div', { class: 'card' }, h('h3', { text: 'Voice and style' }), style,
+      h('label', { for: 'g-length', text: 'Length' }), length, h('label', { for: 'g-emoji', text: 'Emoji' }), emoji, h('label', { for: 'g-hashtags', text: 'Hashtags' }), hashtags,
+      h('label', { for: 'g-customers', text: 'Customers' }), customers, h('label', { for: 'g-photos', text: 'Photos' }), photos));
+    app.appendChild(h('div', { class: 'card' }, h('h3', { text: 'Sign-off (optional)' }), h('label', { for: 'g-signoff', text: 'The closing line you can add with a tick when generating' }), signText,
+      h('label', { class: 'check' }, signDefault, h('span', { text: 'Tick it by default' }))));
+    app.appendChild(h('div', { class: 'card' }, h('h3', { text: 'Never say (one per line)' }), never));
+    app.appendChild(h('div', { class: 'card' }, h('h3', { text: 'Examples' }), h('p', { class: 'hint', text: 'These show the shape of a post. The samples are placeholders, not real posts. Replace them with real posts as they appear (open a published post and press "Use as a style example"). Up to three are used each time.' }), exBox,
+      h('button', { type: 'button', class: 'ghost small', text: 'Add an example', onclick: function () { if (exRows.length < L.examples) addExample({ source: 'sample', title: 'New example' }); } })));
+    app.appendChild(save);
+    app.appendChild(hist);
+  }
+
   async function showUsers() {
     app.textContent = '';
     var d = await call('GET', '/users');

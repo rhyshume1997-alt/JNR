@@ -10,6 +10,7 @@ const P = require('./_lib/publish');
 const M = require('./_lib/model');
 const caption = require('./_lib/caption');
 const guide = require('./_lib/writing-guide');
+const ai = require('./_lib/ai-caption');
 const tolra = require('./_lib/tolra');
 const { query } = require('./_lib/db');
 const { getConfig } = require('./_lib/config');
@@ -67,6 +68,8 @@ route('POST', '/entries/:id/caption', 'editor', async (ctx, id) => {
   }
   return { body: out };
 });
+// AI-written LinkedIn post draft: returns text for a person to edit and approve. Never saves, schedules or publishes anything.
+route('POST', '/entries/:id/ai-caption', 'editor', async (ctx, id) => ({ body: await ai.generate(ctx.user, id, E, await ctx.body()) }));
 route('POST', '/entries/:id/stage-suggestion', 'editor', async (ctx, id) => {
   const entry = await E.getEntry(id);
   return { body: { suggestion: entry.job_ref ? await tolra.suggestStage(entry.job_ref) : null } };

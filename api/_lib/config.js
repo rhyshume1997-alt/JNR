@@ -45,6 +45,13 @@ function getConfig() {
       apiKey: env('ANTHROPIC_API_KEY'),
       model: env('AI_CAPTION_MODEL', 'claude-haiku-5-5'),
       apiUrl: env('ANTHROPIC_API_URL', 'https://api.anthropic.com/v1/messages'),
+      // Cost controls (counted from the audit history; the provider's own spend limit is the final backstop).
+      userDailyLimit: Number(env('AI_USER_DAILY_LIMIT', '15')),
+      dailyLimit: Number(env('AI_DAILY_LIMIT', '60')),
+      monthlyLimit: Number(env('AI_MONTHLY_LIMIT', '600')),
+      maxOutputTokens: Math.min(Number(env('AI_MAX_OUTPUT_TOKENS', '400')), 800),
+      timeoutMs: Number(env('AI_TIMEOUT_MS', '20000')),
+      maxInputChars: Number(env('AI_MAX_INPUT_CHARS', '6000')),
     },
     buffer: {
       apiUrl: env('BUFFER_API_URL', 'https://api.buffer.com'),

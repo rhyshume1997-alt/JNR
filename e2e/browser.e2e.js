@@ -15,11 +15,11 @@ const SKIP = !H.BASE ? 'set TEST_DATABASE_URL' : !chromium ? 'playwright is not 
 const PW = 'correct horse battery staple';
 
 describe('browser tests', { skip: SKIP }, () => {
-  let db, s3, buf, site, browser, tmp, photos, dbq;
+  let db, s3, buf, fake, site, browser, tmp, photos, dbq;
   const jsErrors = [];
 
   before(async () => {
-    db = await H.createTestDb(); s3 = await H.startFakeS3(); buf = await H.startFakeBuffer(); H.setEnv(s3, buf);
+    db = await H.createTestDb(); s3 = await H.startFakeS3(); buf = await H.startFakeBuffer(); fake = await H.startFakeAnthropic(); H.setEnv(s3, buf);
     process.env.PUBLIC_MEDIA_BASE_URL = s3.endpoint + '/public-media';
     dbq = require('../api/_lib/db').query;
     const auth = require('../api/_lib/auth');
@@ -31,7 +31,7 @@ describe('browser tests', { skip: SKIP }, () => {
     for (let i = 0; i < 3; i++) { const f = path.join(tmp, 'photo' + i + '.jpg'); fs.writeFileSync(f, await H.jpegWithExif(1800 + i * 50, 1200, ['#2b4b9e', '#556b2f', '#8a4b2b'][i])); photos.push(f); }
     fs.writeFileSync(path.join(tmp, 'drawing.pdf'), H.FAKE_PDF);
   });
-  after(async () => { await browser.close(); await site.close(); await s3.close(); await buf.close(); await db.drop(); fs.rmSync(tmp, { recursive: true, force: true }); });
+  after(async () => { await browser.close(); await site.close(); await s3.close(); await buf.close(); await fake.close(); await db.drop(); fs.rmSync(tmp, { recursive: true, force: true }); });
 
   async function ctx(kind) {
     const c = await browser.newContext(kind === 'phone' ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : { viewport: { width: 1280, height: 900 } });
@@ -189,7 +189,7 @@ describe('browser tests', { skip: SKIP }, () => {
       await p.locator('button[aria-label="Move photo down"]').first().click();
       await p.waitForFunction((was) => document.querySelector('.order img') && document.querySelector('.order img').getAttribute('src') !== was, firstSrc);
       const order = await p.locator('.order img').evaluateAll((l) => l.map((x) => x.getAttribute('src')));
-      await p.check('#d-li'); await p.click('button:has-text("Generate caption")'); await p.waitForSelector('text=Caption generated');
+      await p.check('#d-li'); await p.click('button:has-text("Free template")'); await p.waitForSelector('text=Caption made from the job details');
       assert.match(await p.inputValue('#f-caption'), /Completed: Flange batch from the phone/);
       assert.ok(!(await p.inputValue('#f-caption')).includes('Zeta'));
       await p.click('button:has-text("Approve")'); await p.waitForSelector('text=Someone else needs to approve this');   // independent approval: the caption was written here
@@ -271,7 +271,7 @@ describe('browser tests', { skip: SKIP }, () => {
       await signIn(p, '/admin', 'editor@jnr.test'); await p.waitForSelector('.list .item');
       await p.locator('.list .item', { hasText: 'Buffer failure job' }).click(); await p.waitForSelector('.order');
       await p.locator('.order input[type=checkbox]').first().check(); await p.waitForTimeout(400);
-      await p.check('#d-li'); await p.click('button:has-text("Generate caption")'); await p.waitForSelector('text=Caption generated');
+      await p.check('#d-li'); await p.click('button:has-text("Free template")'); await p.waitForSelector('text=Caption made from the job details');
       await signIn2(p, 'editor2@jnr.test', 'Buffer failure job');   // a second editor approves: this one wrote the caption
       await p.click('button:has-text("Approve")'); await p.waitForSelector('text=Approved.');
       buf.state.mode = 'mutation-error'; buf.state.failures = 1;
@@ -282,6 +282,85 @@ describe('browser tests', { skip: SKIP }, () => {
       buf.state.mode = 'ok';
       await p.click('button:has-text("Retry publishing")'); await p.waitForSelector('text=Published. Website: published. LinkedIn: draft saved in Buffer and checked');
       await c.close(); await w.close();
+    });
+  });
+
+  describe('AI-written posts', () => {
+    const aiOn = () => { Object.assign(process.env, { AI_CAPTIONS_ENABLED: 'true', ANTHROPIC_API_KEY: 'sk-browser-test', ANTHROPIC_API_URL: fake.url, AI_USER_DAILY_LIMIT: '50', AI_DAILY_LIMIT: '500', AI_MONTHLY_LIMIT: '5000' }); };
+    const aiOff = () => { for (const k of ['AI_CAPTIONS_ENABLED', 'ANTHROPIC_API_KEY', 'ANTHROPIC_API_URL', 'AI_USER_DAILY_LIMIT', 'AI_DAILY_LIMIT', 'AI_MONTHLY_LIMIT']) delete process.env[k]; };
+    async function phoneEntry(title, notes) {
+      const w = await ctx('phone'); const wp = await page(w, 'phone-ai');
+      await signIn(wp, '/workshop', 'work@jnr.test'); await fillForm(wp, title, [photos[0]]);
+      await wp.fill('#rough', notes); await noOverflow(wp);
+      await wp.click('button.big'); await wp.waitForSelector('text=Saved', { timeout: 30000 }); await w.close();
+    }
+    it('the workshop form has one friendly box for the job in their own words, and nothing else needed', async () => {
+      const w = await ctx('phone'); const wp = await page(w, 'phone-box');
+      await signIn(wp, '/workshop', 'work@jnr.test'); await wp.waitForSelector('#rough');
+      assert.match(await wp.locator('label[for=rough]').innerText(), /in your own words/i);
+      assert.match(await wp.locator('#rough ~ .hint, label[for=rough] ~ .hint').first().innerText(), /microphone/i);
+      await noOverflow(wp); await w.close();
+    });
+    it('with the kill switch off there are no AI buttons anywhere', async () => {
+      aiOff(); await phoneEntry('Switch off job', 'Turned a run of brackets.');
+      const c = await ctx('desktop'); const p = await page(c, 'editor-off');
+      await signIn(p, '/admin', 'editor@jnr.test'); await p.waitForSelector('.list .item');
+      await p.locator('.list .item', { hasText: 'Switch off job' }).click(); await p.waitForSelector('#f-caption');
+      assert.strictEqual(await p.locator('#ai-go').count(), 0); assert.strictEqual(await p.locator('button:has-text("Generate with AI")').count(), 0);
+      assert.ok(await p.locator('button:has-text("Free template")').count() >= 1);
+      await c.close();
+    });
+    it('an editor generates a draft, edits it, regenerates, and saves; nothing is posted; blocked text explains itself; the writing guide can be edited', async () => {
+      aiOn(); fake.state.calls.length = 0; fake.state.replies.length = 0;
+      await phoneEntry('Brackets for the boat', 'Made a run of brackets for a boat builder. The thin wall was the tricky bit so we took light cuts.');
+      const c = await ctx('desktop'); const p = await page(c, 'editor-ai');
+      await signIn(p, '/admin', 'editor@jnr.test'); await p.waitForSelector('.list .item');
+      await p.locator('.list .item', { hasText: 'Brackets for the boat' }).click(); await p.waitForSelector('#ai-go');
+      assert.match(await p.locator('#ai-go').innerText(), /Generate with AI/);
+      // first draft
+      fake.state.reply = JSON.stringify({ post: 'We made a run of brackets for a boat builder. The thin wall was the tricky bit, so we took light cuts.', questions: [] });
+      await p.click('#ai-go'); await p.waitForSelector('#ai-out .notice.ok');
+      assert.match(await p.inputValue('#f-caption'), /light cuts/);
+      assert.match(await p.locator('#ai-out').innerText(), /Nothing is saved or posted until you do/); assert.match(await p.locator('#ai-out').innerText(), /1 of 50/);
+      assert.match(await p.locator('#ai-go').innerText(), /Regenerate/);
+      assert.ok(!(await dbq("select caption from entries where title = 'Brackets for the boat'")).rows[0].caption, 'the draft is not saved yet');
+      // edit it by hand, then regenerate with an instruction: the second draft replaces the box
+      await p.fill('#f-caption', 'My own edit that will be replaced.');
+      fake.state.reply = JSON.stringify({ post: 'Brackets for a boat builder, with light cuts on the thin wall.', questions: [] });
+      await p.fill('#ai-instr', 'make it shorter'); await p.click('#ai-go'); await p.waitForFunction(() => /Brackets for a boat builder/.test(document.querySelector('#f-caption').value));
+      assert.match(fake.state.calls[1].body.messages[0].content, /make it shorter/);
+      // edit and save
+      await p.fill('#f-caption', 'Brackets for a boat builder, with light cuts on the thin wall. Checked by the office.');
+      await p.click('button:has-text("Save changes")'); await p.waitForSelector('text=Saved.');
+      assert.match((await dbq("select caption from entries where title = 'Brackets for the boat'")).rows[0].caption, /Checked by the office/);
+      assert.strictEqual(buf.state.posts.size >= 0, true);
+      assert.ok(![...buf.state.posts.values()].some((x) => /Brackets for a boat builder/.test(x.text || '')), 'nothing was sent to Buffer');
+      // blocked: the customer's name typed into the notes
+      await p.fill('#f-rough_notes', 'Made brackets for Zeta Hydraulics.'); await p.fill('#f-customer_name', 'Zeta Hydraulics');
+      const before = fake.state.calls.length; await p.click('#ai-go'); await p.waitForSelector('#ai-out .notice.bad');
+      assert.match(await p.locator('#ai-out').innerText(), /customer's name is in the job notes[\s\S]*Nothing was sent to the AI/i);
+      assert.strictEqual(fake.state.calls.length, before, 'nothing left the building');
+      // the writing guide page
+      await p.click('button:has-text("Back to list")'); await p.waitForSelector('#guide-btn'); await p.click('#guide-btn'); await p.waitForSelector('#g-style');
+      assert.match(await p.inputValue('#g-length'), /one short paragraph/i);
+      await p.fill('#g-signoff', 'Got a job to make? Send us the drawing.'); await p.check('#g-signdefault');
+      await p.click('#g-save'); await p.waitForSelector('text=Saved as version 1.');
+      assert.strictEqual((await dbq("select version from settings where key = 'writing_guide'")).rows[0].version, 1);
+      await p.click('button:has-text("Back")'); await p.waitForSelector('.list .item');
+      await c.close(); aiOff();
+    });
+    it('a limit is explained in plain words and the free template stays available', async () => {
+      aiOn(); process.env.AI_USER_DAILY_LIMIT = '1'; await dbq("delete from audit_log where action = 'ai_caption_requested'");
+      await phoneEntry('Limit job', 'Made a run of brackets for a boat builder.');
+      const c = await ctx('desktop'); const p = await page(c, 'editor-limit');
+      await signIn(p, '/admin', 'editor2@jnr.test'); await p.waitForSelector('.list .item');
+      await p.locator('.list .item', { hasText: 'Limit job' }).click(); await p.waitForSelector('#ai-go');
+      fake.state.reply = JSON.stringify({ post: 'We made a run of brackets for a boat builder.', questions: [] });
+      await p.click('#ai-go'); await p.waitForSelector('#ai-out .notice.ok');
+      await p.click('#ai-go'); await p.waitForSelector('#ai-out .notice.warn');
+      assert.match(await p.locator('#ai-out').innerText(), /used your 1 AI drafts for today[\s\S]*free template is still available/i);
+      assert.ok(await p.locator('button:has-text("Free template")').count() >= 1);
+      await c.close(); aiOff();
     });
   });
 

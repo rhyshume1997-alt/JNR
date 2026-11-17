@@ -1,10 +1,7 @@
 'use strict';
 
-// LinkedIn caption generation. Two providers:
-//   template  free, offline, deterministic. The default.
-//   anthropic paid API, only when AI_CAPTIONS_ENABLED=true and a key is set.
-// Both go through validateCaption(): numbers, names and claims that are not in the job facts are rejected,
-// and a rejected AI caption falls back to the template. Nothing is invented, by construction.
+// The free template caption, and validateCaption(): numbers, names and claims that are not in the job facts are rejected.
+// AI-written posts (ai-caption.js, kill switch off by default) go through the same validateCaption(), so nothing is invented.
 
 const background = require('../../content/background.json');
 const { getConfig } = require('./config');
@@ -62,7 +59,8 @@ function templateCaption(facts) {
 }
 
 // Words and numbers that came from the job itself.
-function factText(facts) { return [facts.title, facts.summary, facts.material, facts.process, facts.stageLabel].join(' ').toLowerCase(); }
+// facts.extra: other text a person supplied for this post (their own notes, photo descriptions, an instruction, the company name).
+function factText(facts) { return [facts.title, facts.summary, facts.material, facts.process, facts.stageLabel].concat(facts.extra || []).join(' ').toLowerCase(); }
 function wordsOf(text) { return new Set((String(text).toLowerCase().match(/[a-z][a-z'’.-]*[a-z]|[a-z]/g) || [])); }
 
 const CLAIM_PATTERNS = [
@@ -77,7 +75,9 @@ function validateCaption(caption, facts, forbidden) {
   const text = String(caption || '').trim();
   if (!text) return { ok: false, problems: ['Caption is empty.'] };
   if (text.length > MAX_LEN) problems.push('Caption is longer than ' + MAX_LEN + ' characters.');
-  if (/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(text)) problems.push('Contains an emoji.');
+  const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
+  if (EMOJI.test(text) && !EMOJI.test(factText(facts))) problems.push('Contains an emoji.');
+  if (facts.noHashtags && /(^|\s)#\w/.test(text)) problems.push('Contains a hashtag.');
   if (/!/.test(text) && !/!/.test(factText(facts))) problems.push('Contains an exclamation mark.');
 
   const ft = factText(facts);
@@ -120,60 +120,15 @@ function validateCaption(caption, facts, forbidden) {
   return { ok: problems.length === 0, problems };
 }
 
-function aiPrompt(facts) {
-  const system = [
-    'You write short LinkedIn posts for J.N.R. Engineering, a family run machining and fabrication workshop in Hamilton, Scotland.',
-    'Voice: ' + background.voice,
-    'Hard rules:',
-    '- Use ONLY the job facts and company background supplied. Do not add any specification, tolerance, quantity, customer, industry, outcome, date, location detail or lead time that is not in them.',
-    '- Never name a customer. Never mention drawings or part numbers.',
-    '- Do not claim certifications, awards, speed or quality that are not supplied.',
-    '- 2 to 4 short sentences, under 600 characters, British spelling, no emojis, no exclamation marks, no hashtags except optional #CNCMilling, #CNCTurning, #WaterJet, #Fabrication when the process matches.',
-    '- Output the post text only.',
-  ].join('\n');
-  const user = 'Job facts (JSON):\n' + JSON.stringify({
-    type: facts.kindLabel, title: facts.title, description: facts.summary, material: facts.material || undefined,
-    process: facts.process || undefined, current_stage: facts.stageLabel || undefined,
-  }) + '\n\nCompany background:\n' + background.statements.join('\n') + '\n\nWrite the post.';
-  return { system, user };
-}
-
-async function callAnthropic(cfg, facts, fetchImpl) {
-  const p = aiPrompt(facts);
-  const res = await (fetchImpl || fetch)(cfg.apiUrl, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-api-key': cfg.apiKey, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: cfg.model, max_tokens: 400, system: p.system, messages: [{ role: 'user', content: p.user }] }),
-    signal: AbortSignal.timeout(20000),
-  });
-  if (!res.ok) throw new Error('Caption service returned ' + res.status);
-  const data = await res.json();
-  const block = (data.content || []).find((b) => b.type === 'text');
-  if (!block || !block.text) throw new Error('Caption service returned no text');
-  return block.text.trim();
-}
-
-// Returns { caption, source: 'template'|'ai', note? }. Never throws for provider problems: it falls back.
+// The template caption (free, offline, deterministic). AI-written posts are made by ai-caption.js, which reuses validateCaption().
+// Returns { caption, source: 'template', note?, problems? }.
 async function generateCaption(entry, opts) {
-  const cfg = getConfig().caption;
   const facts = factsOf(entry);
   const forbidden = [entry.customer_name, entry.job_ref];
-  const fallback = function (note) {
-    const t = templateCaption(facts);
-    const v = validateCaption(t, facts, forbidden);
-    return { caption: t, source: 'template', note: note || undefined, problems: v.ok ? undefined : v.problems };
-  };
-  const wantAi = (opts && opts.provider) ? opts.provider === 'ai' : cfg.aiEnabled;
-  if (!wantAi) return fallback();
-  if (!cfg.apiKey) return fallback('AI captions are switched on but no key is set, so the template was used.');
-  try {
-    const text = await callAnthropic(cfg, facts, opts && opts.fetchImpl);
-    const v = validateCaption(text, facts, forbidden);
-    if (!v.ok) return fallback('The AI caption was rejected (' + v.problems[0] + ') so the template was used.');
-    return { caption: text, source: 'ai' };
-  } catch (e) {
-    return fallback('The caption service was not available, so the template was used.');
-  }
+  const t = templateCaption(facts);
+  const v = validateCaption(t, facts, forbidden);
+  const note = opts && opts.provider === 'ai' ? 'Use the "Generate with AI" button for an AI-written post. This is the free template.' : undefined;
+  return { caption: t, source: 'template', note, problems: v.ok ? undefined : v.problems };
 }
 
-module.exports = { factsOf, templateCaption, validateCaption, generateCaption, aiPrompt, MAX_LEN };
+module.exports = { factsOf, templateCaption, validateCaption, generateCaption, MAX_LEN };

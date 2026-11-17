@@ -219,4 +219,20 @@ async function uploadImage(api, entryId, buf, type, name) {
   return { presign: p, put, finalize: fin, imageId: p.data.image_id };
 }
 
-module.exports = { BASE, createTestDb, startFakeS3, startFakeBuffer, startApp, jpegWithExif, pngImage, FAKE_PDF, FAKE_DXF, setEnv, uploadImage, expectedSignature };
+// ---- fake Anthropic Messages API for the AI caption tests. `state.reply` is the text returned; `state.mode` can make it fail.
+async function startFakeAnthropic() {
+  const state = { reply: '{"post": "", "questions": []}', replies: [], status: 200, delayMs: 0, calls: [], usage: { input_tokens: 1200, output_tokens: 90 }, stopReason: 'end_turn' };
+  const server = http.createServer(async (req, res) => {
+    const chunks = []; for await (const c of req) chunks.push(c);
+    let body = {}; try { body = JSON.parse(Buffer.concat(chunks).toString()); } catch (_) { /* leave empty */ }
+    state.calls.push({ headers: req.headers, body, raw: Buffer.concat(chunks).toString() });
+    if (state.delayMs) await new Promise((r) => setTimeout(r, state.delayMs));
+    res.writeHead(state.status, { 'content-type': 'application/json' });
+    const text = state.replies.length ? state.replies.shift() : state.reply;
+    res.end(JSON.stringify(state.status === 200 ? { content: [{ type: 'text', text }], usage: state.usage, stop_reason: state.stopReason } : { error: { message: 'nope' } }));
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  return { url: 'http://127.0.0.1:' + server.address().port + '/v1/messages', state, close: () => new Promise((r) => server.close(r)) };
+}
+
+module.exports = { startFakeAnthropic, BASE, createTestDb, startFakeS3, startFakeBuffer, startApp, jpegWithExif, pngImage, FAKE_PDF, FAKE_DXF, setEnv, uploadImage, expectedSignature };
