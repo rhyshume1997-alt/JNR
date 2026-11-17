@@ -1,0 +1,15 @@
+{
+  "_note": "Company background for captions. Taken from the live site pages in this repository (about, services, capabilities). Only plain descriptive statements: no figures, tolerances, lead times or claims about any particular job. Edit this file when the website changes.",
+  "name": "J.N.R. Engineering",
+  "place": "Hamilton",
+  "siteHost": "jnrengineering.co.uk",
+  "statements": [
+    "J.N.R. Engineering is a family run engineering firm in Hamilton.",
+    "The workshop offers CNC milling, CNC turning, water jet profiling, fabrication and inspection.",
+    "Parts are machined in plastics, copper, aluminium, stainless and hardened steel.",
+    "Fabrication is in mild steel, stainless or aluminium.",
+    "Work ranges from single prototypes to production batches.",
+    "Every part is measured against the customer's drawing before it leaves the workshop."
+  ],
+  "voice": "Plain, practical UK English. Short sentences. Written by the workshop, not a marketing department. No hype, no emojis, no exclamation marks."
+}

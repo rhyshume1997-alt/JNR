@@ -1,0 +1,14 @@
+# SCOPE EVERY VARIABLE TO THE BRANCH feature/workshop-content (Preview > a specific branch), never "All Preview Branches".
+# Paste-ready NON-SECRET Preview variables for Vercel (project jnr > Settings > Environment Variables > Add > paste into the Key field).
+# Tick ONLY "Preview". These hold no secrets, so anyone (including Claude in Chrome) may paste them.
+# The secret ones are NOT here: Rhys adds those himself, as Sensitive: S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, BUFFER_API_TOKEN.
+# Fill the two blanks from Cloudflare first (account id in S3_ENDPOINT, the pub-....r2.dev address in PUBLIC_MEDIA_BASE_URL).
+S3_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+S3_REGION=auto
+S3_BUCKET_PRIVATE=jnr-staging-private
+S3_BUCKET_PUBLIC=jnr-staging-public
+PUBLIC_MEDIA_BASE_URL=https://<pub-xxxxxxxx>.r2.dev
+BUFFER_ENV=staging
+BUFFER_STAGING_CHANNEL_ID=6afa05fbece6dfde5fd74165
+SITE_URL=https://jnr-git-feature-workshop-content-rhsys-projects.vercel.app
+# Do NOT add DEPLOY_ENV, AI_CAPTIONS_ENABLED or TOLRA_ENABLED. DATABASE_URL is already there from the Neon integration.

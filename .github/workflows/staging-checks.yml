@@ -1,0 +1,143 @@
+# STAGING CHECKS. Read docs/BROWSER-ONLY-SETUP.md before changing anything in this file.
+#
+# How secrets are protected (the repository is public and the code is edited by more than one person or tool):
+#   1. The credentials live ONLY in the "staging" environment, never as repository secrets, and that environment accepts
+#      deployments ONLY from tags named staging-*. A push to any branch, including feature/workshop-content, can never reach them,
+#      even if the push changes this file or a script.
+#   2. Only Rhys can create tags named staging-* (a repository ruleset restricts creating, moving and deleting them).
+#      A tag is created at one specific commit, and the code that runs is that commit's: edit-and-push cannot change it.
+#   3. The first step of the secret-bearing job stops unless the tagged commit equals the APPROVED_SHA that Rhys stored in the
+#      staging environment. Rhys approves the SHA twice: by storing it, and by approving the run.
+#   4. The environment requires Rhys's approval before any step runs.
+#   5. Each mode gets only the credentials it needs (the Buffer token only for check and e2e-draft).
+#   6. Install steps and the planning job get no secrets. Dependencies come from the committed lockfile with install scripts off.
+#   7. Actions are pinned to full commit SHAs. No cache is used (nothing a branch could poison). Token is read-only.
+#   8. The repository is public, so logs are public. Every line printed is scrubbed of hosts, users, keys and ids.
+#   Do not turn on step-debug logging (ACTIONS_STEP_DEBUG) for this workflow.
+# Cost: this repository is public, so standard GitHub-hosted runners are free. A run takes 1 to 3 minutes.
+name: Staging checks
+
+on:
+  push:
+    tags:
+      - 'staging-services-*'
+      - 'staging-check-*'
+      - 'staging-e2e-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-checks
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Read the tag (no secrets)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      mode: ${{ steps.mode.outputs.mode }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - id: mode
+        run: node scripts/ci-mode.js
+
+  run:
+    name: Staging ${{ needs.plan.outputs.mode }}
+    needs: plan
+    if: startsWith(github.ref, 'refs/tags/staging-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: staging
+    steps:
+      - name: Stop unless this is exactly the commit Rhys approved (runs before anything from the repository)
+        run: |
+          if ! [[ "$APPROVED_SHA" =~ ^[0-9a-f]{40}$ ]]; then echo "APPROVED_SHA is not set to a full 40-character commit SHA in the staging environment. Refusing."; exit 1; fi
+          if [ "$GITHUB_SHA" != "$APPROVED_SHA" ]; then echo "This commit is not the approved one. Refusing."; exit 1; fi
+          echo "Commit is the approved one."
+        env:
+          APPROVED_SHA: ${{ vars.APPROVED_SHA }}
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Install dependencies from the lockfile (no install scripts, no secrets)
+        run: npm ci --ignore-scripts
+
+      # Each mode below is its own step with only the credentials it needs.
+      - name: services (Postgres and R2 only)
+        if: needs.plan.outputs.mode == 'services'
+        run: node scripts/staging-check.js --skip-buffer
+        env:
+          DEPLOY_ENV: staging
+          BUFFER_ENV: staging
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_REGION: auto
+          S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          S3_BUCKET_PRIVATE: ${{ vars.S3_BUCKET_PRIVATE }}
+          S3_BUCKET_PUBLIC: ${{ vars.S3_BUCKET_PUBLIC }}
+          PUBLIC_MEDIA_BASE_URL: ${{ vars.PUBLIC_MEDIA_BASE_URL }}
+          STAGING_ORIGIN: ${{ vars.STAGING_ORIGIN }}
+          SITE_URL: ${{ vars.STAGING_ORIGIN }}
+
+      - name: e2e (whole flow, website only, no Buffer)
+        if: needs.plan.outputs.mode == 'e2e'
+        run: node scripts/staging-e2e.js
+        env:
+          DEPLOY_ENV: staging
+          BUFFER_ENV: staging
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_REGION: auto
+          S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          S3_BUCKET_PRIVATE: ${{ vars.S3_BUCKET_PRIVATE }}
+          S3_BUCKET_PUBLIC: ${{ vars.S3_BUCKET_PUBLIC }}
+          PUBLIC_MEDIA_BASE_URL: ${{ vars.PUBLIC_MEDIA_BASE_URL }}
+          STAGING_ORIGIN: ${{ vars.STAGING_ORIGIN }}
+          SITE_URL: ${{ vars.STAGING_ORIGIN }}
+
+      - name: check (everything, including Buffer, creates no post)
+        if: needs.plan.outputs.mode == 'check'
+        run: node scripts/staging-check.js
+        env:
+          DEPLOY_ENV: staging
+          BUFFER_ENV: staging
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_REGION: auto
+          S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          S3_BUCKET_PRIVATE: ${{ vars.S3_BUCKET_PRIVATE }}
+          S3_BUCKET_PUBLIC: ${{ vars.S3_BUCKET_PUBLIC }}
+          PUBLIC_MEDIA_BASE_URL: ${{ vars.PUBLIC_MEDIA_BASE_URL }}
+          STAGING_ORIGIN: ${{ vars.STAGING_ORIGIN }}
+          SITE_URL: ${{ vars.STAGING_ORIGIN }}
+          BUFFER_API_TOKEN: ${{ secrets.BUFFER_API_TOKEN }}
+          BUFFER_STAGING_CHANNEL_ID: ${{ vars.BUFFER_STAGING_CHANNEL_ID }}
+
+      - name: e2e-draft (whole flow plus ONE Buffer draft, deleted afterwards)
+        if: needs.plan.outputs.mode == 'e2e-draft'
+        run: node scripts/staging-e2e.js --confirm-draft
+        env:
+          DEPLOY_ENV: staging
+          BUFFER_ENV: staging
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_REGION: auto
+          S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          S3_BUCKET_PRIVATE: ${{ vars.S3_BUCKET_PRIVATE }}
+          S3_BUCKET_PUBLIC: ${{ vars.S3_BUCKET_PUBLIC }}
+          PUBLIC_MEDIA_BASE_URL: ${{ vars.PUBLIC_MEDIA_BASE_URL }}
+          STAGING_ORIGIN: ${{ vars.STAGING_ORIGIN }}
+          SITE_URL: ${{ vars.STAGING_ORIGIN }}
+          BUFFER_API_TOKEN: ${{ secrets.BUFFER_API_TOKEN }}
+          BUFFER_STAGING_CHANNEL_ID: ${{ vars.BUFFER_STAGING_CHANNEL_ID }}

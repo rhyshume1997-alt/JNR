@@ -7,6 +7,23 @@
     "node": "24.x"
   },
   "dependencies": {
-    "busboy": "^1.6.0"
+    "busboy": "1.6.0",
+    "pg": "8.23.1",
+    "sharp": "0.35.5"
+  },
+  "scripts": {
+    "test": "node --test",
+    "migrate": "node scripts/migrate.js",
+    "buffer:check": "node scripts/buffer-check.js",
+    "staging:check": "node --env-file=.env.staging scripts/staging-check.js",
+    "staging:e2e": "node --env-file=.env.staging scripts/staging-e2e.js",
+    "cleanup:orphans": "node --env-file=.env.staging scripts/cleanup-orphans.js",
+    "redirect:activate": "node scripts/activate-our-work-redirect.js",
+    "test:browser": "node --test e2e/browser.e2e.js",
+    "migrate:staging": "node --env-file=.env.staging scripts/migrate.js",
+    "admin:create": "node --env-file=.env.staging scripts/create-user.js",
+    "staging:selftest": "node scripts/staging-check.js --selftest && node scripts/staging-e2e.js --selftest",
+    "staging:check:services": "node --env-file=.env.staging scripts/staging-check.js --skip-buffer",
+    "premerge:check": "node scripts/premerge-check.js"
   }
 }

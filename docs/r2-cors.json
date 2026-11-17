@@ -1,0 +1,8 @@
+[
+  {
+    "AllowedOrigins": ["https://jnr-git-feature-workshop-content-rhsys-projects.vercel.app"],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["content-type"],
+    "MaxAgeSeconds": 3600
+  }
+]
