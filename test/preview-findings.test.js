@@ -108,7 +108,7 @@ describe('3. image sizes (no database)', () => {
 });
 
 describe('preview findings (database)', { skip: SKIP }, () => {
-  let db, s3, buf, app, editor, work, E;
+  let db, s3, buf, app, editor, approver, work, E;
   before(async () => {
     db = await H.createTestDb(); s3 = await H.startFakeS3(); buf = await H.startFakeBuffer(); H.setEnv(s3, buf);
     app = await H.startApp();
@@ -116,8 +116,10 @@ describe('preview findings (database)', { skip: SKIP }, () => {
     const auth = require('../api/_lib/auth');
     const boss = { email: 'seed@test' };
     await auth.createUser(boss, { email: 'editor@jnr.test', name: 'Editor', role: 'editor', password: PW });
+    await auth.createUser(boss, { email: 'approver@jnr.test', name: 'Second Editor', role: 'editor', password: PW });
     await auth.createUser(boss, { email: 'work@jnr.test', name: 'Workshop One', role: 'workshop', password: PW });
-    editor = app.client(); work = app.client();
+    editor = app.client(); approver = app.client(); work = app.client();
+    assert.strictEqual((await approver.login('approver@jnr.test', PW)).status, 200);
     assert.strictEqual((await editor.login('editor@jnr.test', PW)).status, 200);
     assert.strictEqual((await work.login('work@jnr.test', PW)).status, 200);
   });
@@ -145,7 +147,7 @@ describe('preview findings (database)', { skip: SKIP }, () => {
   }
   async function approved(id) {
     assert.strictEqual((await work.post('/entries/' + id + '/submit')).status, 200);
-    const r = await editor.post('/entries/' + id + '/approve', { acknowledge: [] });
+    const r = await approver.post('/entries/' + id + '/approve', { acknowledge: [] });
     assert.strictEqual(r.status, 200, JSON.stringify(r.data));
   }
   async function published(id) {

@@ -40,7 +40,7 @@
     data.entries.forEach(function (e) {
       list.appendChild(h('button', { class: 'item', onclick: function () { showEntry(e.id); } },
         h('span', null, h('strong', { text: e.title }), h('br'), h('small', { text: (meta.kinds.filter(function (k) { return k.id === e.kind; })[0] || {}).label + ' · ' + (e.image_count || 0) + ' photo(s) · ' + fmt(e.updated_at) })),
-        h('span', null, pill(e.status), e.is_live ? h('span', { class: 'pill live', text: ' live' }) : null)));
+        h('span', null, pill(e.status), e.is_live ? h('span', { class: 'pill live', text: e.status === 'published' ? ' live on website' : ' still live on website' }) : null)));
     });
     box.appendChild(nav); box.appendChild(tabs); box.appendChild(list);
   }
@@ -68,7 +68,8 @@
     var stage = h('select', { id: 'f-stage', disabled: !canEdit }, h('option', { value: '', text: 'Not set' }), meta.stages.map(function (s) { return h('option', { value: s.id, text: s.label, selected: s.id === e.stage }); })); f.stage = stage;
     var caseStudy = h('input', { type: 'checkbox', id: 'f-case', checked: e.is_case_study, disabled: !canEdit });
     var destWeb = h('input', { type: 'checkbox', id: 'd-web', checked: e.destinations.website, disabled: !canEdit || !isEditor() });
-    var destLi = h('input', { type: 'checkbox', id: 'd-li', checked: e.destinations.linkedin, disabled: !canEdit || !isEditor() });
+    var liOn = meta.features.linkedin !== false;
+    var destLi = h('input', { type: 'checkbox', id: 'd-li', checked: liOn && e.destinations.linkedin, disabled: !liOn || !canEdit || !isEditor() });
     var custOk = h('input', { type: 'checkbox', id: 'f-custok', checked: e.customer_public_ok, disabled: !isAdmin() || !canEdit });
 
     var fields = h('div', { class: 'card' }, h('h3', { text: 'Content' }),
@@ -133,7 +134,7 @@
       if (!canEdit) return;
       var body = { version: e.version, kind: kind.value, title: f.title.value, summary: f.summary.value, material: f.material.value, process: f.process.value, stage: stage.value || null, event_date: f.event_date.value || undefined,
         body: f.body.value, is_case_study: caseStudy.checked, customer_name: f.customer_name.value, job_ref: f.job_ref.value, customer_notes: f.customer_notes.value };
-      if (isEditor()) { body.internal_notes = f.internal_notes.value; body.destinations = { website: destWeb.checked, linkedin: destLi.checked }; body.caption = cap.value; }
+      if (isEditor()) { body.internal_notes = f.internal_notes.value; body.destinations = { website: destWeb.checked, linkedin: liOn && destLi.checked }; body.caption = cap.value; }
       if (isAdmin()) { body.customer_public_ok = custOk.checked; body.customer_public_label = f.customer_public_label.value; }
       var r = await call('PATCH', '/entries/' + id, body); e = r.entry;
       if (!quiet) await showEntry(id, { kind: 'ok', text: r.changed.length ? 'Saved.' : 'Nothing changed.' });
@@ -141,7 +142,7 @@
 
     var dest = h('div', { class: 'card' }, h('h3', { text: 'Where it goes' }),
       h('label', { class: 'check' }, destWeb, h('span', { text: 'Our Work page and homepage' })),
-      h('label', { class: 'check' }, destLi, h('span', { text: 'LinkedIn (saved as a draft in Buffer only; you publish it from Buffer). Environment: ' + meta.features.buffer_env })));
+      liOn ? h('label', { class: 'check' }, destLi, h('span', { text: 'LinkedIn (saved as a draft in Buffer only; you publish it from Buffer). Environment: ' + meta.features.buffer_env })) : h('p', { class: 'hint', id: 'li-off', text: 'LinkedIn drafts are switched off on this site.' }));
 
     // actions
     var actions = h('div', { class: 'card' }, h('h3', { text: 'Actions' }), h('div', { class: 'row' }));
@@ -162,7 +163,8 @@
     if (isAdmin() && e.is_live) btn('Take off the website', 'danger', function () { if (confirm('Remove this from the public site?')) act(function () { return call('POST', '/entries/' + id + '/unpublish'); }, 'Taken off the website.'); });
     btn('Back to list', 'ghost', showList);
 
-    var head = h('div', { class: 'row' }, h('h2', { class: 'grow', text: e.title }), pill(e.status), e.is_live ? h('span', { class: 'pill live', text: 'live' }) : null);
+    var head = h('div', { class: 'row' }, h('h2', { class: 'grow', text: e.title }), pill(e.status), e.is_live ? h('span', { class: 'pill live', text: e.status === 'published' ? 'Live on website' : 'Still live on website' }) : null);
+    if (e.is_live && e.status !== 'published') msg.appendChild(h('div', { class: 'notice warn', id: 'still-live', role: 'status', text: 'Still live on website. Visitors can still see the last approved version of this entry. Approve and publish it again to update it, or ask an admin to take it off the website.' }));
     if (e.review_note && e.status === 'rejected') msg.appendChild(h('div', { class: 'notice bad', text: 'Rejected: ' + e.review_note }));
 
     // publications

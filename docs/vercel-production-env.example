@@ -1,0 +1,28 @@
+# PRODUCTION CONFIGURATION, NAMES ONLY. NOTHING HERE HAS BEEN APPLIED. Do not add any of this until Rhys approves the production launch.
+# Scope every variable to "Production" only (Vercel > jnr > Settings > Environment Variables). Mark secrets Sensitive. Rhys enters secret
+# values himself; Claude in Chrome may paste only the non-secret ones. Never copy a staging value: production uses its own database,
+# its own buckets and its own access keys.
+
+# --- Secrets (Sensitive, Production only, entered by Rhys) ---------------------------------------------------------------
+# DATABASE_URL                 pooled connection string of the PRODUCTION Neon project (a different project from staging)
+# S3_ACCESS_KEY_ID             R2 token for the production buckets only (Object Read & Write, limited to the two buckets below)
+# S3_SECRET_ACCESS_KEY         the same token's secret
+
+# --- Non-secret (Production only) ----------------------------------------------------------------------------------------
+S3_ENDPOINT=https://<PRODUCTION_ACCOUNT_ID>.r2.cloudflarestorage.com
+S3_REGION=auto
+S3_BUCKET_PRIVATE=jnr-prod-private
+S3_BUCKET_PUBLIC=jnr-prod-public
+# PERMANENT address of the public bucket (a custom domain), never an r2.dev address. Decide this BEFORE publishing anything: every
+# published page stores full photo addresses, so changing this later breaks photos already published. See docs/PRODUCTION-RUNBOOK.md.
+PUBLIC_MEDIA_BASE_URL=https://<media.permanent-domain>
+SITE_URL=https://jnrengineering.co.uk
+
+# --- First launch is website-only: LinkedIn off -------------------------------------------------------------------------
+LINKEDIN_ENABLED=false
+# Do NOT add BUFFER_API_TOKEN, BUFFER_ENV or BUFFER_CHANNEL_ID_LINKEDIN for the first launch. With no token LinkedIn is off whatever
+# LINKEDIN_ENABLED says. They are added only when the JNR company page is connected, after the Buffer draft image retention decision.
+
+# --- Never set in production ---------------------------------------------------------------------------------------------
+# DEPLOY_ENV (staging marker), BUFFER_STAGING_CHANNEL_ID, ALLOW_INSECURE_COOKIES, DATABASE_SSL_VERIFY=false,
+# AI_CAPTIONS_ENABLED, TOLRA_ENABLED (Tolra stays disabled).

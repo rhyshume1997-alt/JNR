@@ -23,7 +23,7 @@ describe('browser tests', { skip: SKIP }, () => {
     process.env.PUBLIC_MEDIA_BASE_URL = s3.endpoint + '/public-media';
     dbq = require('../api/_lib/db').query;
     const auth = require('../api/_lib/auth');
-    for (const [role, email] of [['admin', 'admin@jnr.test'], ['editor', 'editor@jnr.test'], ['workshop', 'work@jnr.test'], ['workshop', 'other@jnr.test']]) await auth.createUser({ email: 'seed' }, { email, name: role, role, password: PW });
+    for (const [role, email] of [['admin', 'admin@jnr.test'], ['editor', 'editor@jnr.test'], ['editor', 'editor2@jnr.test'], ['workshop', 'work@jnr.test'], ['workshop', 'other@jnr.test']]) await auth.createUser({ email: 'seed' }, { email, name: role, role, password: PW });
     site = await require('../testlib/site-server').startSite(0, { extraConnectSrc: s3.endpoint }); // the fake storage is plain http; real R2 is https and is already allowed
     browser = await chromium.launch();
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'jnr-e2e-'));
@@ -47,6 +47,11 @@ describe('browser tests', { skip: SKIP }, () => {
   async function signIn(p, path_, email) {
     await p.goto(site.origin + path_, { waitUntil: 'domcontentloaded' });
     await p.waitForSelector('#li-email'); await p.fill('#li-email', email); await p.fill('#li-pw', PW); await p.click('form.login button[type=submit]');
+  }
+  async function signIn2(p, email, title) {
+    await p.evaluate(() => fetch('/api/admin/auth/logout', { method: 'POST', headers: { 'X-Requested-With': 'jnr' } }));
+    await signIn(p, '/admin', email); await p.waitForSelector('.list .item');
+    await p.locator('.list .item', { hasText: title }).click(); await p.waitForSelector('.order');
   }
   const noOverflow = async (p) => assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'no sideways scrolling');
 
@@ -187,8 +192,13 @@ describe('browser tests', { skip: SKIP }, () => {
       await p.check('#d-li'); await p.click('button:has-text("Generate caption")'); await p.waitForSelector('text=Caption generated');
       assert.match(await p.inputValue('#f-caption'), /Completed: Flange batch from the phone/);
       assert.ok(!(await p.inputValue('#f-caption')).includes('Zeta'));
-      await p.click('button:has-text("Approve")'); await p.waitForSelector('text=Approved. Public photo copies');
-      await p.click('button:has-text("Publish")'); await p.waitForSelector('text=Published. Website: published. LinkedIn: draft saved in Buffer and checked. Nothing was posted.');
+      await p.click('button:has-text("Approve")'); await p.waitForSelector('text=Someone else needs to approve this');   // independent approval: the caption was written here
+      const c2 = await ctx('desktop'); const p2 = await page(c2, 'editor2');
+      await signIn(p2, '/admin', 'editor2@jnr.test'); await p2.waitForSelector('.list .item');
+      await p2.locator('.list .item', { hasText: 'Flange batch from the phone' }).click(); await p2.waitForSelector('.order');
+      await p2.click('button:has-text("Approve")'); await p2.waitForSelector('text=Approved. Public photo copies');
+      await p2.click('button:has-text("Publish")'); await p2.waitForSelector('text=Published. Website: published. LinkedIn: draft saved in Buffer and checked. Nothing was posted.');
+      await c2.close();
       const post = [...buf.state.posts.values()].pop();
       assert.strictEqual(post.status, 'draft'); assert.strictEqual(post.assets.length, 2);
       const imgIds = (await dbq("select approved_snapshot->'images' as i from entries where title = 'Flange batch from the phone'")).rows[0].i.map((i) => i.id);
@@ -213,6 +223,33 @@ describe('browser tests', { skip: SKIP }, () => {
       assert.strictEqual(buf.state.posts.size, drafts, 'no Buffer draft was created');
       await c.close(); await w.close();
     });
+    it('a published entry that goes back to draft is clearly marked "Still live on website"; LinkedIn can be switched off', async () => {
+      const c = await ctx('desktop'); const p = await page(c, 'editor4');
+      await signIn(p, '/admin', 'editor@jnr.test'); await p.waitForSelector('.list .item');
+      await p.locator('.list .item', { hasText: 'Website only job' }).click(); await p.waitForSelector('.order');
+      assert.strictEqual(await p.locator('#still-live').count(), 0, 'no warning while it is simply published');
+      assert.match(await p.locator('.pill.live').first().innerText(), /Live on website/i);
+      await p.fill('#f-summary', 'Reworded after publishing, not yet approved.');
+      await p.click('button:has-text("Save changes")');
+      await p.waitForSelector('#still-live');
+      assert.match(await p.locator('#still-live').innerText(), /Still live on website/i);
+      assert.match(await p.locator('.pill.live').first().innerText(), /Still live on website/i);
+      assert.match(await p.locator('.pill.draft').first().innerText(), /Draft/i);
+      await p.click('button:has-text("Back to list")'); await p.waitForSelector('.list .item');
+      assert.match(await p.locator('.list .item', { hasText: 'Website only job' }).innerText(), /still live on website/i);
+      // the public site still shows the last approved wording
+      const feed = await (await fetch(site.origin + '/api/feed')).json();
+      assert.ok(feed.items.some((i) => i.title === 'Website only job'), 'still public');
+      // LinkedIn switched off: no tick box, a plain message instead, and the page still works
+      const was = process.env.LINKEDIN_ENABLED; process.env.LINKEDIN_ENABLED = 'false';
+      try {
+        await p.reload({ waitUntil: 'domcontentloaded' }); await p.waitForSelector('.list .item');   // the page reads the site's features once, when it loads
+        await p.locator('.list .item', { hasText: 'Website only job' }).click(); await p.waitForSelector('#li-off');
+        assert.strictEqual(await p.locator('#d-li').count(), 0, 'no LinkedIn tick box');
+        assert.match(await p.locator('#li-off').innerText(), /switched off/i);
+      } finally { if (was === undefined) delete process.env.LINKEDIN_ENABLED; else process.env.LINKEDIN_ENABLED = was; }
+      await c.close();
+    });
     it('a photo that cannot be uploaded leaves nothing behind and does not block the retry on the phone', async () => {
       const w = await ctx('phone'); const wp = await page(w, 'phone4');
       let blockPut = true;
@@ -235,6 +272,7 @@ describe('browser tests', { skip: SKIP }, () => {
       await p.locator('.list .item', { hasText: 'Buffer failure job' }).click(); await p.waitForSelector('.order');
       await p.locator('.order input[type=checkbox]').first().check(); await p.waitForTimeout(400);
       await p.check('#d-li'); await p.click('button:has-text("Generate caption")'); await p.waitForSelector('text=Caption generated');
+      await signIn2(p, 'editor2@jnr.test', 'Buffer failure job');   // a second editor approves: this one wrote the caption
       await p.click('button:has-text("Approve")'); await p.waitForSelector('text=Approved.');
       buf.state.mode = 'mutation-error'; buf.state.failures = 1;
       await p.click('button:has-text("Publish")'); await p.waitForSelector('text=Not everything finished.');

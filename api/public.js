@@ -7,7 +7,9 @@ const { query } = require('./_lib/db');
 const { send } = require('./_lib/http');
 const render = require('./_lib/render');
 
-const CACHE = 'public, max-age=0, s-maxage=60, stale-while-revalidate=600';
+// Nothing public is cached for the first launch: when an entry is taken off the website it is gone from the next request. (A short edge
+// cache can be reintroduced later together with an explicit purge on unpublish.)
+const CACHE = 'no-store';
 
 async function liveEntries(limit) {
   const { rows } = await query('select slug, live_at, live_snapshot from entries where live_snapshot is not null order by (live_snapshot->>\'event_date\') desc, live_at desc limit $1', [limit]);
@@ -43,10 +45,10 @@ module.exports = async function handler(req, res) {
       return send(res, 200, xml, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': CACHE });
     }
     if (view === 'entry') {
-      if (!/^[a-z0-9-]{1,80}$/.test(String(slug || ''))) return html(404, render.renderNotFound(), 'public, max-age=0, s-maxage=30');
+      if (!/^[a-z0-9-]{1,80}$/.test(String(slug || ''))) return html(404, render.renderNotFound(), 'no-store');
       const { rows } = await query('select slug, live_snapshot from entries where slug = $1 and live_snapshot is not null', [slug]);
       const row = rows[0];
-      if (!row || !(row.live_snapshot.is_case_study && row.live_snapshot.body)) return html(404, render.renderNotFound(), 'public, max-age=0, s-maxage=30');
+      if (!row || !(row.live_snapshot.is_case_study && row.live_snapshot.body)) return html(404, render.renderNotFound(), 'no-store');
       return html(200, render.renderEntry(row));
     }
     return html(200, render.renderIndex(await liveEntries(60)));

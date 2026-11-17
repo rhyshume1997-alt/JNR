@@ -97,6 +97,7 @@ async function purgeAbandonedUploads(entryId) {
 
 async function createEntry(user, input, idemKey) {
   const fields = M.validateEntryFields(Object.assign({ destinations: { website: true, linkedin: false } }, input));
+  if (fields.destinations && fields.destinations.linkedin === true && !getConfig().buffer.enabled) throw new HttpError(422, 'linkedin_disabled', 'LinkedIn drafts are switched off on this site.');
   if (!M.hasRole(user, 'admin')) { delete fields.customer_public_ok; delete fields.customer_public_label; }
   const key = idemKey ? String(idemKey).slice(0, 100) : null;
   return tx(async (client) => {
@@ -124,6 +125,9 @@ async function updateEntry(user, id, input) {
     const fields = M.validateEntryFields(input, { partial: true });
     if (!M.hasRole(user, 'admin')) { delete fields.customer_public_ok; delete fields.customer_public_label; }
     if (!M.hasRole(user, 'editor')) { delete fields.internal_notes; delete fields.destinations; }
+    if (fields.destinations && fields.destinations.linkedin === true && entry.destinations.linkedin !== true && !getConfig().buffer.enabled) {
+      throw new HttpError(422, 'linkedin_disabled', 'LinkedIn drafts are switched off on this site.');
+    }
     if (input.version !== undefined && Number(input.version) !== entry.version) {
       throw new HttpError(409, 'conflict', 'Someone else changed this entry. Reload to see their changes.');
     }
@@ -199,12 +203,33 @@ function snapshotOf(entry, publicImages) {
   };
 }
 
+// Who made the most recent change to what the entry says or shows: public wording, caption, destinations, photos added, removed,
+// re-ordered or re-described. A reviewer ticking a photo as "checked", or editing private notes, is review work, not a content change.
+// Null if nobody has changed it since it was created.
+async function lastContentEditor(entryId) {
+  const { rows } = await query("select actor_id, action, detail from audit_log where entry_id = $1 and action in ('entry_updated','image_added','image_removed','images_reordered','image_updated') order by id desc", [entryId]);
+  for (const r of rows) {
+    const fields = (r.detail && r.detail.fields) || [];
+    if (r.action === 'entry_updated' && !fields.some((f) => M.CONTENT_FIELDS.includes(f))) continue;
+    // Re-describing a photo, or taking it out of the public set (un-ticking), changes what is published; ticking it in is review work.
+    if (r.action === 'image_updated' && !(fields.includes('alt_text') || (fields.includes('cleared_for_public') && r.detail.cleared_for_public === false))) continue;
+    return r.actor_id;
+  }
+  return null;
+}
+
 async function approveEntry(user, id, input) {
   const acknowledged = new Set((input && input.acknowledge) || []);
   // Pass 1: read and check, then do the slow image work outside the transaction.
   const entry = await getEntry(id);
   if (entry.status !== 'pending_approval') throw new HttpError(409, 'bad_transition', 'Only entries waiting for approval can be approved.');
-  if (entry.created_by === user.id && !M.hasRole(user, 'admin') ) throw new HttpError(403, 'forbidden', 'Someone else needs to approve your own entry.');
+  // Independent approval: the person who wrote the entry, and the person who made the latest change to it, cannot approve it.
+  // An admin may (the documented override); that is recorded in the audit history.
+  const lastEditor = await lastContentEditor(id);
+  const notIndependent = entry.created_by === user.id || lastEditor === user.id;
+  if (notIndependent && !M.hasRole(user, 'admin')) {
+    throw new HttpError(403, 'forbidden', entry.created_by === user.id ? 'Someone else needs to approve your own entry.' : 'Someone else needs to approve this: you made the latest change to it.');
+  }
   const imgs = await getImages(id);
   const r = await reviewChecks(entry, imgs);
   if (r.blocking.length) throw new HttpError(422, 'blocked', 'This entry cannot be approved yet.', { blocking: r.blocking });
@@ -239,7 +264,7 @@ async function approveEntry(user, id, input) {
     fresh.slug = slug;
     const snap = snapshotOf(fresh, publicImages);
     await setStatus(client, user, fresh, 'approved', 'entry_approved',
-      { warnings_acknowledged: Array.from(acknowledged), images_published: publicImages.length, images_excluded: r.uncleared.length },
+      { warnings_acknowledged: Array.from(acknowledged), images_published: publicImages.length, images_excluded: r.uncleared.length, independent_approval_overridden: notIndependent || undefined },
       ['reviewed_by = $3', 'reviewed_at = now()', 'approved_at = now()', 'approved_snapshot = $4', 'slug = $5', 'review_note = null'],
       [user.id, JSON.stringify(snap), slug]);
     return getEntry(id, client);
@@ -279,18 +304,23 @@ async function touchContent(client, user, entry, action, detail) {
 
 async function updateImage(user, imageId, input) {
   return tx(async (client) => {
-    const { rows } = await client.query('select entry_id from entry_images where id = $1', [imageId]);
+    const { rows } = await client.query('select entry_id, alt_text, cleared_for_public from entry_images where id = $1', [imageId]);
     if (!rows[0]) throw new HttpError(404, 'not_found', 'Photo not found.');
     const entry = await getEntry(rows[0].entry_id, client);
     assertCanEditContent(user, entry);
-    const sets = []; const vals = [imageId];
-    if (input.alt_text !== undefined) { const a = M.clean(input.alt_text); if (a.length > 300) throw new HttpError(422, 'validation', 'Description is too long.'); vals.push(a); sets.push('alt_text = $' + vals.length); }
-    if (input.cleared_for_public !== undefined) {
-      vals.push(input.cleared_for_public === true); sets.push('cleared_for_public = $' + vals.length);
+    const sets = []; const vals = [imageId]; const changed = [];
+    if (input.alt_text !== undefined) {
+      const a = M.clean(input.alt_text);
+      if (a.length > 300) throw new HttpError(422, 'validation', 'Description is too long.');
+      if (a !== rows[0].alt_text) { vals.push(a); sets.push('alt_text = $' + vals.length); changed.push('alt_text'); }
     }
-    if (!sets.length) return null;
+    if (input.cleared_for_public !== undefined && (input.cleared_for_public === true) !== rows[0].cleared_for_public) {
+      vals.push(input.cleared_for_public === true); sets.push('cleared_for_public = $' + vals.length); changed.push('cleared_for_public');
+    }
+    // Only what really changed is saved and recorded (the dashboard sends both fields each time).
+    if (!sets.length) return (await getImages(entry.id, client)).find((i) => i.id === imageId);
     await client.query('update entry_images set ' + sets.join(', ') + ' where id = $1', vals);
-    await touchContent(client, user, entry, 'image_updated', { image_id: imageId, fields: Object.keys(input).filter((k) => ['alt_text', 'cleared_for_public'].includes(k)) });
+    await touchContent(client, user, entry, 'image_updated', { image_id: imageId, fields: changed, cleared_for_public: changed.includes('cleared_for_public') ? input.cleared_for_public === true : undefined });
     return (await getImages(entry.id, client)).find((i) => i.id === imageId);
   });
 }
@@ -302,7 +332,7 @@ async function publicCopiesInUse(entryId, imageId) {
   const { rows } = await query('select live_snapshot from entries where id = $1', [entryId]);
   const live = rows[0] && rows[0].live_snapshot;
   if (live && Array.isArray(live.images) && live.images.some((i) => i.id === imageId)) return true;
-  const pubs = await query("select 1 from publications where entry_id = $1 and destination = 'linkedin' and (buffer_post_id is not null or status in ('pending','sending','saved','verified','uncertain')) limit 1", [entryId]);
+  const pubs = await query("select 1 from publications where entry_id = $1 and destination = 'linkedin' and (buffer_post_id is not null or status in ('pending','sending','saved','verified','uncertain') or updated_at > now() - interval '10 minutes') limit 1", [entryId]);
   return pubs.rows.length > 0;
 }
 

@@ -50,9 +50,9 @@ async function run(opts) {
   const app = await H.startApp();
   const ids = { users: [], entry: null, privateKeys: [], publicKeys: [], draftId: null, draftMarker: 'Staging test ' + tag, draftUnknown: false };
   try {
-    for (const role of ['workshop', 'editor', 'admin']) ids.users.push((await auth.createUser({ email: 'staging-e2e' }, { email: mail(role), name: 'E2E ' + role, role, password: pw })).id);
-    const work = app.client(), editor = app.client();
-    check((await work.login(mail('workshop'), pw)).status === 200 && (await editor.login(mail('editor'), pw)).status === 200, 'sign in (workshop, editor)');
+    for (const [label, role] of [['workshop', 'workshop'], ['editor', 'editor'], ['approver', 'editor'], ['admin', 'admin']]) ids.users.push((await auth.createUser({ email: 'staging-e2e' }, { email: mail(label), name: 'E2E ' + label, role, password: pw })).id);
+    const work = app.client(), editor = app.client(), approver = app.client();
+    check((await work.login(mail('workshop'), pw)).status === 200 && (await editor.login(mail('editor'), pw)).status === 200 && (await approver.login(mail('approver'), pw)).status === 200, 'sign in (workshop, editor, second editor)');
 
     const created = await work.post('/entries', { kind: 'in_production', title: 'Staging test ' + tag, summary: 'Test entry from the staging check. Please ignore.', material: 'Aluminium 6082', process: 'CNC milling', stage: 'machining',
       customer_name: MARK.customer, job_ref: MARK.job, customer_notes: MARK.notes }, { 'idempotency-key': crypto.randomUUID() });
@@ -74,8 +74,11 @@ async function run(opts) {
     const cap = await editor.post('/entries/' + ids.entry + '/caption', { save: true });
     check(cap.data.source === 'template' && /Staging test/.test(cap.data.caption) && !cap.data.caption.includes(MARK.customer), 'free template caption generated, no private data in it');
     check((await work.post('/entries/' + ids.entry + '/submit')).status === 200, 'workshop submits for approval');
-    const ap = await editor.post('/entries/' + ids.entry + '/approve', {});
-    check(ap.status === 200, 'editor approves', JSON.stringify(ap.data));
+    // Independent approval: the editor who wrote the caption cannot approve it; a second editor does.
+    const self = await editor.post('/entries/' + ids.entry + '/approve', {});
+    check(self.status === 403, 'the editor who changed the entry cannot approve it', 'status ' + self.status);
+    const ap = await approver.post('/entries/' + ids.entry + '/approve', {});
+    check(ap.status === 200, 'a second editor approves', JSON.stringify(ap.data));
     const snap = (await query('select approved_snapshot s from entries where id = $1', [ids.entry])).rows[0].s;
     // Both public copies of every photo: the large one and the small one used on the list page and in the feed.
     snap.images.forEach((i) => { [i.url, i.thumb_url].forEach((u) => { if (u) ids.publicKeys.push(decodeURIComponent(u.slice(cfg.storage.publicBaseUrl.length + 1))); }); });

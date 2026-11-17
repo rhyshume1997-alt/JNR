@@ -17,10 +17,29 @@ async function getSnapshotRow(id, client) {
   return rows[0];
 }
 
-async function upsertPublication(destination, entryId, channelId, hash) {
+async function upsertPublication(destination, entryId, channelId, hash, client) {
+  const q = client ? client.query.bind(client) : query;
   const key = entryId + ':' + destination + ':' + (channelId || 'site') + ':' + hash;
-  await query('insert into publications (entry_id, destination, channel_id, content_hash, idempotency_key) values ($1,$2,$3,$4,$5) on conflict (idempotency_key) do nothing', [entryId, destination, channelId || null, hash, key]);
-  return (await query('select * from publications where idempotency_key = $1', [key])).rows[0];
+  await q('insert into publications (entry_id, destination, channel_id, content_hash, idempotency_key) values ($1,$2,$3,$4,$5) on conflict (idempotency_key) do nothing', [entryId, destination, channelId || null, hash, key]);
+  return (await q('select * from publications where idempotency_key = $1', [key])).rows[0];
+}
+
+const EDITED_WHILE_PUBLISHING = () => new HttpError(409, 'conflict', 'The entry was changed while it was being published. Review it and publish again.');
+
+// Publishing and removing a photo are ordered through the entry's row. A removal changes the entry's version (and clears its approved
+// copy) before it looks at what still uses a photo's public copies; publishing only goes ahead if the version is still the one that was
+// approved, and records itself (the live copy, or a pending Buffer draft) in the same step. Either the removal sees the publication and
+// keeps the copies, or the publication is refused. Public images therefore never lose their files under a live page or a Buffer draft.
+async function beginLinkedIn(entry, channelId, hash) {
+  return tx(async (client) => {
+    const cur = await getSnapshotRow(entry.id, client);   // locks the entry row
+    if (cur.version !== entry.version || !cur.approved_snapshot) throw EDITED_WHILE_PUBLISHING();
+    const pub = await upsertPublication('linkedin', entry.id, channelId, hash, client);
+    // Even a retry of an earlier failed attempt counts as "in use" from this moment (see publicCopiesInUse), so a photo removal that
+    // lands before the draft is claimed keeps the public copies.
+    await client.query('update publications set updated_at = now() where id = $1', [pub.id]);
+    return pub;
+  });
 }
 
 async function setPub(id, fields) {
@@ -31,8 +50,10 @@ async function setPub(id, fields) {
 async function publishWebsite(user, entry) {
   const snap = entry.approved_snapshot;
   const hash = sha(JSON.stringify([snap.title, snap.summary, snap.body, snap.images.map((i) => i.url)]));
+  // Only if the entry is still exactly the version that was approved (see the note above beginLinkedIn).
+  const went = await query('update entries set live_snapshot = approved_snapshot, live_at = now() where id = $1 and version = $2 and approved_snapshot is not null returning id', [entry.id, entry.version]);
+  if (!went.rows[0]) throw EDITED_WHILE_PUBLISHING();
   const pub = await upsertPublication('website', entry.id, null, hash);
-  await query('update entries set live_snapshot = approved_snapshot, live_at = now() where id = $1', [entry.id]);
   await setPub(pub.id, { status: 'verified', verified_at: new Date(), attempts: pub.attempts + 1, last_error: null });
   await audit(null, user, 'website_published', entry.id, { slug: snap.slug });
   return { destination: 'website', status: 'verified' };
@@ -59,13 +80,14 @@ async function verifyAndRecord(user, entry, pub, expected) {
 
 async function publishLinkedIn(user, entry) {
   const snap = entry.approved_snapshot;
+  if (!getConfig().buffer.enabled) return { destination: 'linkedin', status: 'failed', error: 'LinkedIn drafts are switched off on this site.' };
   let channelId;
   try { channelId = linkedinChannel(); } catch (e) { return { destination: 'linkedin', status: 'failed', error: e.message }; }
   const imageUrls = snap.images.map((i) => i.url);
   const altTexts = snap.images.map((i) => i.alt);
   const hash = sha(JSON.stringify([channelId, snap.caption, imageUrls]));
   const expected = { channelId, text: snap.caption, imageUrls };
-  let pub = await upsertPublication('linkedin', entry.id, channelId, hash);
+  let pub = await beginLinkedIn(entry, channelId, hash);
 
   if (pub.status === 'verified') return { destination: 'linkedin', status: 'verified', buffer_post_id: pub.buffer_post_id, unchanged: true };
   if (pub.status === 'saved' && pub.buffer_post_id) return verifyAndRecord(user, entry, pub, expected);
@@ -111,7 +133,8 @@ async function publishEntry(user, id) {
   const dests = entry.approved_snapshot.destinations || {};
   const results = [];
   if (dests.website) results.push(await publishWebsite(user, entry));
-  if (dests.linkedin) results.push(await publishLinkedIn(user, entry));
+  // With LinkedIn switched off (a website-only launch) nothing goes to Buffer and the confirmation says LinkedIn was not selected.
+  if (dests.linkedin && getConfig().buffer.enabled) results.push(await publishLinkedIn(user, entry));
   const allOk = results.length > 0 && results.every((r) => r.status === 'verified');
   const to = allOk ? 'published' : 'failed';
   await tx(async (client) => {
@@ -164,4 +187,4 @@ async function resolveUncertain(user, publicationId, input) {
   throw new HttpError(422, 'validation', 'Choose retry, link or discard.');
 }
 
-module.exports = { publishEntry, unpublish, listPublications, resolveUncertain, publishLinkedIn };
+module.exports = { publishEntry, unpublish, listPublications, resolveUncertain, publishLinkedIn, publishWebsite, beginLinkedIn, getSnapshotRow };

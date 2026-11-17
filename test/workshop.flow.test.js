@@ -10,7 +10,7 @@ const SKIP = H.BASE ? false : 'set TEST_DATABASE_URL to a Postgres server to run
 const PW = 'correct horse battery staple';
 
 describe('workshop content system (database)', { skip: SKIP }, () => {
-  let db, s3, buf, app, admin, editor, work, work2;
+  let db, s3, buf, app, admin, editor, approver, work, work2;
 
   before(async () => {
     db = await H.createTestDb();
@@ -22,11 +22,13 @@ describe('workshop content system (database)', { skip: SKIP }, () => {
     const boss = { email: 'seed@test' };
     await auth.createUser(boss, { email: 'admin@jnr.test', name: 'Admin', role: 'admin', password: PW });
     await auth.createUser(boss, { email: 'editor@jnr.test', name: 'Editor', role: 'editor', password: PW });
+    await auth.createUser(boss, { email: 'approver@jnr.test', name: 'Second Editor', role: 'editor', password: PW });
     await auth.createUser(boss, { email: 'work@jnr.test', name: 'Workshop One', role: 'workshop', password: PW });
     await auth.createUser(boss, { email: 'work2@jnr.test', name: 'Workshop Two', role: 'workshop', password: PW });
-    admin = app.client(); editor = app.client(); work = app.client(); work2 = app.client();
+    admin = app.client(); editor = app.client(); approver = app.client(); work = app.client(); work2 = app.client();
     assert.strictEqual((await admin.login('admin@jnr.test', PW)).status, 200);
     assert.strictEqual((await editor.login('editor@jnr.test', PW)).status, 200);
+    assert.strictEqual((await approver.login('approver@jnr.test', PW)).status, 200);
     assert.strictEqual((await work.login('work@jnr.test', PW)).status, 200);
     assert.strictEqual((await work2.login('work2@jnr.test', PW)).status, 200);
   });
@@ -48,7 +50,7 @@ describe('workshop content system (database)', { skip: SKIP }, () => {
   }
   async function toApproved(id, who, ack) {
     assert.strictEqual((await (who || work).post('/entries/' + id + '/submit')).status, 200);
-    const r = await editor.post('/entries/' + id + '/approve', { acknowledge: ack || [] });
+    const r = await approver.post('/entries/' + id + '/approve', { acknowledge: ack || [] });
     assert.strictEqual(r.status, 200, JSON.stringify(r.data));
     return r.data.entry;
   }
@@ -208,7 +210,7 @@ describe('workshop content system (database)', { skip: SKIP }, () => {
     it('blocks approval when the customer name, a reference or contact details are in public text', async () => {
       const id = await readyEntry(work, { title: 'Flanges for Acme Marine', summary: 'Made for Acme Marine, ref JOB-77421, call 0141 555 0100.', customer_name: 'Acme Marine', job_ref: 'JOB-77421' });
       await work.post('/entries/' + id + '/submit');
-      const r = await editor.post('/entries/' + id + '/approve', {});
+      const r = await approver.post('/entries/' + id + '/approve', {});
       assert.strictEqual(r.status, 422); assert.strictEqual(r.data.error, 'blocked');
       const codes = r.data.blocking.map((b) => b.code);
       assert.ok(codes.includes('customer_name') && codes.includes('job_ref') && codes.includes('phone'), codes.join());
@@ -217,11 +219,11 @@ describe('workshop content system (database)', { skip: SKIP }, () => {
     it('makes the approver confirm warnings about drawing numbers, tolerances and part numbers', async () => {
       const id = await readyEntry(work, { title: 'Bracket per drawing no. AB-1234 rev C', summary: 'Held to a tolerance of plus or minus 0.01.' });
       await work.post('/entries/' + id + '/submit');
-      const r = await editor.post('/entries/' + id + '/approve', {});
+      const r = await approver.post('/entries/' + id + '/approve', {});
       assert.strictEqual(r.status, 422); assert.strictEqual(r.data.error, 'needs_acknowledgement');
       const ack = r.data.warnings.map((w) => w.code + ':' + w.field);
       assert.ok(ack.length >= 2);
-      assert.strictEqual((await editor.post('/entries/' + id + '/approve', { acknowledge: ack })).status, 200);
+      assert.strictEqual((await approver.post('/entries/' + id + '/approve', { acknowledge: ack })).status, 200);
     });
     it('does not let the author approve their own entry, but a different approver can', async () => {
       const id = await readyEntry(editor, { title: 'Editor wrote this' }, 0);
@@ -232,10 +234,10 @@ describe('workshop content system (database)', { skip: SKIP }, () => {
     it('requires every photo to be marked as checked before it can go public', async () => {
       const id = await readyEntry(work, { title: 'Uncleared photo' }, 2, { leaveUncleared: true });
       await work.post('/entries/' + id + '/submit');
-      const r = await editor.post('/entries/' + id + '/approve', {});
+      const r = await approver.post('/entries/' + id + '/approve', {});
       assert.strictEqual(r.status, 422); assert.strictEqual(r.data.error, 'images_not_cleared');
       assert.strictEqual([...s3.objects.keys()].filter((k) => k.includes('/public/' + id)).length, 0, 'no public copy was made');
-      const ok = await editor.post('/entries/' + id + '/approve', { excludeUncleared: true });
+      const ok = await approver.post('/entries/' + id + '/approve', { excludeUncleared: true });
       assert.strictEqual(ok.status, 200);
       assert.strictEqual((await editor.get('/entries/' + id)).data.entry.status, 'approved');
     });
@@ -267,7 +269,7 @@ describe('workshop content system (database)', { skip: SKIP }, () => {
       assert.strictEqual((await editor.patch('/images/' + img.id, { cleared_for_public: true })).status, 200);
       assert.strictEqual((await editor.patch('/entries/' + id, { summary: 'Tidied wording.' })).status, 200);
       assert.strictEqual((await editor.get('/entries/' + id)).data.entry.status, 'pending_approval');
-      assert.strictEqual((await editor.post('/entries/' + id + '/approve', {})).status, 200);
+      assert.strictEqual((await approver.post('/entries/' + id + '/approve', {})).status, 200);
     });
     it('rejects a rejected entry with a reason, lets the author fix and resubmit', async () => {
       const id = await readyEntry(work, { title: 'Needs work' }, 0);
@@ -319,7 +321,7 @@ describe('workshop content system (database)', { skip: SKIP }, () => {
       const list = await fetch(app.origin + '/our-work'); const html = await list.text();
       assert.strictEqual(list.status, 200);
       assert.match(html, /Flange set for the marine sector/);
-      assert.match(list.headers.get('cache-control'), /s-maxage/);
+      assert.strictEqual(list.headers.get('cache-control'), 'no-store', 'public pages are never cached, so taking an entry off the website takes effect at once');
       assert.ok(!/noindex/.test(html), 'indexable once there is real content');
       const feed = await (await fetch(app.origin + '/api/feed')).json();
       assert.strictEqual(feed.items[0].title, 'Flange set for the marine sector');
@@ -493,7 +495,7 @@ describe('workshop content system (database)', { skip: SKIP }, () => {
       const a = (await editor.get('/entries/' + id + '/audit')).data.audit;
       const actions = a.map((x) => x.action);
       for (const want of ['entry_created', 'image_added', 'entry_updated', 'entry_submitted', 'entry_approved']) assert.ok(actions.includes(want), 'missing ' + want + ' in ' + actions.join());
-      assert.ok(a.some((x) => x.actor_email === 'editor@jnr.test' && x.action === 'entry_approved'));
+      assert.ok(a.some((x) => x.actor_email === 'approver@jnr.test' && x.action === 'entry_approved'));
       const dump = JSON.stringify(a);
       assert.ok(!dump.includes('Hidden Customer') && !dump.includes('keep this private'), 'private values are recorded by field name only');
       assert.ok((await require('../api/_lib/db').query("select count(*)::int n from audit_log where action in ('login','login_failed')")).rows[0].n > 0, 'sign-ins are audited');

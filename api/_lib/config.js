@@ -49,6 +49,8 @@ function getConfig() {
     buffer: {
       apiUrl: env('BUFFER_API_URL', 'https://api.buffer.com'),
       token: env('BUFFER_API_TOKEN'),
+      // LinkedIn drafts are available only when a token is configured and LINKEDIN_ENABLED is not switched off (production starts website-only).
+      enabled: flag('LINKEDIN_ENABLED', true) && !!env('BUFFER_API_TOKEN'),
       env: bufferEnv,
       // Staging may only ever target the staging channel (the personal LinkedIn profile used for tests).
       stagingChannelId: env('BUFFER_STAGING_CHANNEL_ID'),
