@@ -364,6 +364,70 @@ describe('browser tests', { skip: SKIP }, () => {
     });
   });
 
+  describe('the one-page post tool', () => {
+    const aiOn = () => { Object.assign(process.env, { AI_CAPTIONS_ENABLED: 'true', ANTHROPIC_API_KEY: 'sk-browser-test', ANTHROPIC_API_URL: fake.url, AI_USER_DAILY_LIMIT: '50', AI_DAILY_LIMIT: '500', AI_MONTHLY_LIMIT: '5000' }); };
+    const aiOff = () => { for (const k of ['AI_CAPTIONS_ENABLED', 'ANTHROPIC_API_KEY', 'ANTHROPIC_API_URL', 'AI_USER_DAILY_LIMIT', 'AI_DAILY_LIMIT', 'AI_MONTHLY_LIMIT']) delete process.env[k]; };
+    it('John uploads photos, adds notes, generates, edits, and saves ONE Buffer draft that is not scheduled or posted', async () => {
+      aiOn(); fake.state.calls.length = 0; fake.state.replies.length = 0;
+      const c = await ctx('desktop'); const p = await page(c, 'post-admin');
+      await signIn(p, '/post', 'admin@jnr.test'); await p.waitForSelector('#p-title');
+      await p.fill('#p-title', 'Quick post bracket run');
+      await p.fill('#p-notes', 'Made a run of brackets for a boat builder. Thin wall was tricky so light cuts.');
+      await p.setInputFiles('#p-file', [photos[0], photos[1]]); await p.waitForFunction(() => document.querySelectorAll('#p-photos img').length === 2, null, { timeout: 30000 });
+      fake.state.reply = JSON.stringify({ post: 'We made a run of brackets for a boat builder. The thin wall was the tricky bit, so we took light cuts.', questions: [] });
+      await p.click('#p-gen'); await p.waitForSelector('#p-ai .notice.ok');
+      assert.match(await p.inputValue('#p-caption'), /light cuts/);
+      await p.fill('#p-caption', (await p.inputValue('#p-caption')) + ' Edited by John.');
+      // photos must be ticked as checked first
+      await p.click('#p-save'); await p.waitForSelector('#p-msg .notice.bad');
+      assert.match(await p.locator('#p-msg').innerText(), /checked the photos/);
+      const before = buf.state.posts.size; assert.strictEqual(before >= 0, true);
+      await p.check('#p-check'); await p.click('#p-save'); await p.waitForSelector('#p-result .notice.ok');
+      assert.match(await p.locator('#p-result').innerText(), /Saved in Buffer as a draft\. Nothing has been posted/);
+      const post = [...buf.state.posts.values()].pop();
+      assert.strictEqual(post.status, 'draft'); assert.strictEqual(post.assets.length, 2); assert.match(post.text, /Edited by John/);
+      assert.ok(!post.dueAt && !post.scheduledAt, 'not scheduled');
+      assert.strictEqual(buf.state.posts.size, before + 1, 'exactly one draft');
+      const e = (await dbq("select status, destinations from entries where title = 'Quick post bracket run'")).rows[0];
+      assert.strictEqual(e.status, 'published'); assert.strictEqual(e.destinations.website, false);
+      assert.ok((await dbq("select 1 from audit_log where action = 'ai_caption_requested'")).rows.length >= 1, 'audit record kept');
+      // a second press of Save does not make a second draft
+      await p.click('#p-another'); assert.strictEqual(await p.inputValue('#p-title'), '');
+      assert.strictEqual(buf.state.posts.size, before + 1);
+      await noOverflow(p); await c.close();
+    });
+    it('a workshop update shows under "Waiting for you", John finishes it from the one page; workshop staff cannot use the page', async () => {
+      aiOff();
+      const w = await ctx('phone'); const wp = await page(w, 'post-phone');
+      await signIn(wp, '/workshop', 'work@jnr.test'); await fillForm(wp, 'Staff sent update', [photos[2]]); await wp.click('button.big'); await wp.waitForSelector('text=Saved', { timeout: 30000 });
+      await wp.goto(site.origin + '/post', { waitUntil: 'domcontentloaded' }); await wp.waitForSelector('text=This page is for John and the office');
+      assert.strictEqual(await wp.locator('#p-save').count(), 0); await w.close();
+      const c = await ctx('desktop'); const p = await page(c, 'post-admin2');
+      await signIn(p, '/post', 'admin@jnr.test'); await p.waitForSelector('#p-waiting .card');
+      assert.match(await p.locator('#p-waiting').innerText(), /Staff sent update/);
+      await p.locator('#p-waiting .card.row', { hasText: 'Staff sent update' }).locator('button:has-text("Open")').click();
+      await p.waitForFunction(() => document.querySelectorAll('#p-photos img').length === 1);
+      assert.ok(await p.locator('#p-ai-off').count() === 1, 'AI is off so the page says so');
+      await p.click('#p-gen'); await p.waitForFunction(() => document.querySelector('#p-caption').value.length > 20);
+      await p.check('#p-check'); const before = buf.state.posts.size; await p.check('#p-web'); await p.click('#p-save'); await p.waitForSelector('#p-result .notice.ok');
+      assert.strictEqual(buf.state.posts.size, before + 1);
+      const e = (await dbq("select status, destinations from entries where title = 'Staff sent update'")).rows[0];
+      assert.strictEqual(e.status, 'published'); assert.strictEqual(e.destinations.website, true);
+      await c.close();
+    });
+    it('is usable on a phone and shows a blocked AI request in plain words', async () => {
+      aiOn();
+      const c = await ctx('phone'); const p = await page(c, 'post-phone-admin');
+      await signIn(p, '/post', 'admin@jnr.test'); await p.waitForSelector('#p-title'); await noOverflow(p);
+      await p.fill('#p-title', 'Private detail brackets'); await p.fill('#p-notes', 'Made brackets. Contact the buyer on buyer@example.com about them.');
+      const calls = fake.state.calls.length;
+      await p.click('#p-gen'); await p.waitForSelector('#p-ai .notice.bad');
+      assert.match(await p.locator('#p-ai').innerText(), /Nothing was sent to the AI/);
+      assert.strictEqual(fake.state.calls.length, calls, 'nothing left the building');
+      await noOverflow(p); await c.close(); aiOff();
+    });
+  });
+
   describe('public pages', () => {
     it('shows only published content and never the private details, in the page, the feed or any network request', async () => {
       const c = await ctx('desktop'); const p = await page(c, 'public');

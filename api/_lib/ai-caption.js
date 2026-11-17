@@ -164,7 +164,8 @@ const UTC_MONTH = "(date_trunc('month', now() at time zone 'utc') at time zone '
 // ---- 4. cost controls ---------------------------------------------------------------------------------------------------------------
 async function usageNow(userId) {
   const cfg = getConfig().caption;
-  const q = async (since, who) => (await query("select count(*)::int n from audit_log where action = 'ai_caption_requested' and at >= " + since + (who ? ' and actor_id = $1' : ''), who ? [userId] : [])).rows[0].n;
+  // A person's allowance counts PRESSES of the button (the first call only). The automatic retry counts towards the site-wide limits only.
+  const q = async (since, who) => (await query("select count(*)::int n from audit_log where action = 'ai_caption_requested' and at >= " + since + (who ? " and actor_id = $1 and coalesce(detail->>'attempt', '1') = '1'" : ''), who ? [userId] : [])).rows[0].n;
   const day = UTC_DAY; const month = UTC_MONTH;
   return { user_today: await q(day, true), user_limit: cfg.userDailyLimit, site_today: await q(day, false), site_limit: cfg.dailyLimit, site_month: await q(month, false), month_limit: cfg.monthlyLimit };
 }
@@ -174,9 +175,9 @@ async function reserve(user, entryId, attempt) {
   const cfg = getConfig().caption;
   return tx(async (client) => {
     await client.query('select pg_advisory_xact_lock(7346001)');
-    const c = async (since, who) => (await client.query("select count(*)::int n from audit_log where action = 'ai_caption_requested' and at >= " + since + (who ? ' and actor_id = $1' : ''), who ? [user.id] : [])).rows[0].n;
+    const c = async (since, who) => (await client.query("select count(*)::int n from audit_log where action = 'ai_caption_requested' and at >= " + since + (who ? " and actor_id = $1 and coalesce(detail->>'attempt', '1') = '1'" : ''), who ? [user.id] : [])).rows[0].n;
     const day = UTC_DAY; const month = UTC_MONTH;
-    if ((await c(day, true)) >= cfg.userDailyLimit) throw new HttpError(429, 'ai_limit_user', 'You have used your ' + cfg.userDailyLimit + ' AI drafts for today. The free template is still available, and the limit resets tomorrow.');
+    if (attempt === 1 && (await c(day, true)) >= cfg.userDailyLimit) throw new HttpError(429, 'ai_limit_user', 'You have used your ' + cfg.userDailyLimit + ' AI drafts for today. The free template is still available, and the limit resets tomorrow.');
     if ((await c(day, false)) >= cfg.dailyLimit) throw new HttpError(429, 'ai_limit_day', 'The site has used all of today\'s AI drafts (' + cfg.dailyLimit + '). The free template is still available, and the limit resets tomorrow.');
     if ((await c(month, false)) >= cfg.monthlyLimit) throw new HttpError(429, 'ai_limit_month', 'This month\'s AI limit (' + cfg.monthlyLimit + ' drafts) has been reached. The free template is still available.');
     await audit(client, user, 'ai_caption_requested', entryId, { attempt });

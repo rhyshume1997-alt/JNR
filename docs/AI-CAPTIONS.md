@@ -29,7 +29,7 @@ Never sent: the customer's name (unless an admin allowed it), the job reference,
 ## Cost controls and kill switch
 
 - `AI_CAPTIONS_ENABLED` is **off by default**. Off means no button and no request.
-- Per person per day (`AI_USER_DAILY_LIMIT`, 15), whole site per day (`AI_DAILY_LIMIT`, 60) and per month (`AI_MONTHLY_LIMIT`, 600), counted before each request under a lock, so failures count and two clicks at once cannot slip past. Days and months are UTC.
+- Per person per day (`AI_USER_DAILY_LIMIT`, 15) counts **presses of the button**; the automatic retry is free for the person. Whole site per day (`AI_DAILY_LIMIT`, 60) and per month (`AI_MONTHLY_LIMIT`, 600) count **every call to the AI**, retries included, so spend stays capped. Counted before each request under a lock, so failures count and two clicks at once cannot slip past. Days and months are UTC.
 - Reply limited to `AI_MAX_OUTPUT_TOKENS` (400, hard ceiling 800), at most `AI_MAX_INPUT_CHARS` (6000) of text, `AI_TIMEOUT_MS` (20000) per call, small model by default (`AI_CAPTION_MODEL`, `claude-haiku-5-5`), at most two calls per press.
 - Every result records tokens in and out in the audit history (never the notes or the text). The provider's own monthly spend limit is the final backstop.
 

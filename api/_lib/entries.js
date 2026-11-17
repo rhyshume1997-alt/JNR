@@ -54,7 +54,7 @@ async function listEntries(user, opts) {
   const limit = Math.min(Math.max(Number(opts.limit) || 50, 1), 100);
   const offset = Math.max(Number(opts.offset) || 0, 0);
   const { rows } = await query(
-    'select ' + ENTRY_COLS + ', (select count(*) from entry_images i where i.entry_id = entries.id and i.state = \'ready\')::int as image_count' +
+    'select ' + ENTRY_COLS + ', (select name from users u where u.id = entries.created_by) as created_by_name, (select count(*) from entry_images i where i.entry_id = entries.id and i.state = \'ready\')::int as image_count' +
     ' from entries' + (where.length ? ' where ' + where.join(' and ') : '') + ' order by updated_at desc limit ' + limit + ' offset ' + offset, params);
   return rows.map(shape).map((r) => viewFor(user, r));
 }

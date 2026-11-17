@@ -211,7 +211,7 @@ describe('AI-written posts (database, fake AI service)', { skip: SKIP }, () => {
       assert.strictEqual((await gen(id)).data.status, 'rejected');
     });
     it('if the allowance runs out between the first call and the retry, the person sees what happened, not an error after a billed call', async () => {
-      setEnv({ AI_USER_DAILY_LIMIT: '1' }); const id = await entry(); fake.state.replies = [GOOD('We made 500 brackets.')];
+      setEnv({ AI_DAILY_LIMIT: '1' }); const id = await entry(); fake.state.replies = [GOOD('We made 500 brackets.')];
       const r = await gen(id); assert.strictEqual(r.status, 200); assert.strictEqual(r.data.status, 'rejected'); assert.match(r.data.message, /free template is still available/); assert.strictEqual(fake.state.calls.length, 1);
     });
     it('day and month limits count in UTC whatever the database time zone is', async () => {
@@ -248,7 +248,9 @@ describe('AI-written posts (database, fake AI service)', { skip: SKIP }, () => {
       const id = await entry(); fake.state.replies = [GOOD('We made 500 brackets.'), GOOD('We turned a run of brackets and took light cuts on the thin wall.')];
       const r = await gen(id); assert.strictEqual(r.data.status, 'ok'); assert.strictEqual(r.data.attempt, 2);
       assert.match(userMsg(1), /rejected for these reasons/); assert.match(userMsg(1), /not in the job details: 500/);
-      assert.strictEqual((await query("select count(*)::int n from audit_log where action = 'ai_caption_requested'")).rows[0].n, 2, 'both attempts count against the limits');
+      assert.strictEqual((await query("select count(*)::int n from audit_log where action = 'ai_caption_requested'")).rows[0].n, 2, 'both calls are recorded');
+      assert.strictEqual(r.data.usage.user_today, 1, 'but one press is ONE of the person\'s drafts');
+      assert.strictEqual(r.data.usage.site_today, 2, 'while the site-wide limits count every call to the AI');
     });
     it('accepts facts that really are in the notes, in the staff\'s own words', async () => {
       const id = await entry({ rough_notes: 'Ran 12 of these in 6082 aluminium. Tight 0.05 mm bore.' });
@@ -294,6 +296,15 @@ describe('AI-written posts (database, fake AI service)', { skip: SKIP }, () => {
       const third = await gen(id); assert.strictEqual(third.status, 429); assert.strictEqual(third.data.error, 'ai_limit_user'); assert.match(third.data.message, /free template is still available/);
       assert.strictEqual(fake.state.calls.length, 2);
       assert.strictEqual((await gen(id, {}, editor2)).data.status, 'ok');
+    });
+    it('a press that needed the automatic retry costs the person one draft, not two; the retry still counts towards the site-wide daily limit', async () => {
+      setEnv({ AI_USER_DAILY_LIMIT: '2', AI_DAILY_LIMIT: '4' }); const id = await entry();
+      fake.state.replies = [GOOD('We made 500 brackets.'), GOOD('We turned a run of brackets.'), GOOD('We made 500 brackets.'), GOOD('We turned a run of brackets.')];
+      assert.strictEqual((await gen(id)).data.usage.user_today, 1); assert.strictEqual((await gen(id)).data.usage.user_today, 2);
+      const third = await gen(id); assert.strictEqual(third.status, 429); assert.strictEqual(third.data.error, 'ai_limit_user');
+      assert.strictEqual(fake.state.calls.length, 4);
+      setEnv({ AI_USER_DAILY_LIMIT: '50' }); fake.state.replies = [GOOD('We turned a run of brackets.')];
+      const site = await gen(id); assert.strictEqual(site.status, 429); assert.strictEqual(site.data.error, 'ai_limit_day', 'four calls were made, so the site-wide limit of 4 is reached');
     });
     it('stops at the site-wide daily limit and the monthly limit', async () => {
       setEnv({ AI_DAILY_LIMIT: '3' }); const id = await entry();
