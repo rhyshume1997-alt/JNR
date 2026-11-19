@@ -143,200 +143,166 @@
   ]
 }
 </script>
+<meta name="theme-color" content="#031339">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="preload" href="/assets/jnr-head.otf" as="font" type="font/otf" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/style.css">
+<script>document.documentElement.classList.add('js')</script>
 </head>
-
 <body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="masthead">
+  <div class="wrap">
+    <a class="brand" href="/"><span class="brand-mark"><img src="/assets/logo-navy.png" alt="" width="271" height="360"></span><span class="brand-name">J.N.R. Engineering<small>CNC machining, Hamilton</small></span></a>
+    <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="siteNav"><i aria-hidden="true"></i><span>Menu</span></button>
+    <nav class="site-nav" id="siteNav" aria-label="Main">
+      <ul>
+        <li><a class="nl" href="/">Home</a></li>
+        <li><a class="nl" href="/services" aria-current="page">Services</a></li>
+        <li><a class="nl" href="/about">About</a></li>
+        <li class="nav-m"><a class="nl" href="/quote">Get a quote</a></li>
+      </ul>
+    </nav>
+    <a class="head-tel" href="tel:01416475913" aria-label="Call the workshop on 0141 647 5913">0141 647 5913</a>
+    <a class="btn btn-sm head-quote" href="/quote">Get a quote</a>
+  </div>
+</header>
 
-
-<!-- ═══ NAV ═══ -->
-<nav id="nav">
-  <a class="nav-logo" href="/">
-    <img class="lg-white" src="/assets/logo-white.png" alt="J.N.R. Engineering Ltd">
-    <img class="lg-navy" src="/assets/logo-navy.png" alt="J.N.R. Engineering Ltd">
-  </a>
-  <ul class="nav-links">
-    <li><a id="nl-home" href="/">Home</a></li>
-    <li><a id="nl-about" href="/about">About</a></li>
-    <li><a id="nl-services" class="active" href="/services">Services</a></li>
-  </ul>
-  <a class="nav-tel" href="tel:01416475913" aria-label="Call the workshop on 0141 647 5913">0141 647 5913</a>
-  <a class="nav-cta magnetic" href="/quote"><span class="btn-roll"><span>Get A Quote</span><span aria-hidden="true">Get A Quote</span></span></a>
-  <button class="hamburger" id="burger" onclick="toggleMenu()" aria-label="Menu">
-    <span></span><span></span><span></span>
-  </button>
-</nav>
-
-<!-- ═══ MOBILE MENU ═══ -->
-<div class="mobile-menu" id="mobileMenu">
-  <a href="/">Home</a>
-  <a href="/about">About</a>
-  <a href="/services">Services</a>
-  <a href="/quote">Get A Quote</a>
-</div>
-
-<div id="page-services" class="page active">
-
-  <div class="page-hero">
-    <div class="hero-bg bg-fab"></div>
-    <div class="hero-shade"></div>
-    <div class="page-hero-content">
-      <h1><span class="line"><span style="animation-delay:0.45s">Machining And Fabrication</span></span><span class="line"><span style="animation-delay:0.6s"><em>Under One Roof.</em></span></span></h1>
-      <p class="hero-sub">Milling, turning, water jet profiling, fabrication and inspection, all done in our Hamilton workshop and checked against your drawing before anything goes out. Breakdown or urgent? Tell us and we'll fast-track it where we can.</p>
+<main id="main">
+<section class="pagehead">
+  <div class="wrap">
+    <p class="crumbs"><a href="/">Home</a> / Services</p>
+    <div class="pagehead-grid has-photo">
+      <div>
+        <h1 class="rise">Machining and fabrication <em>under one roof.</em></h1>
+        <p class="lede rise" style="--d:60ms">Milling, turning, water jet profiling, fabrication and inspection, all done in our Hamilton workshop and checked against your drawing before anything goes out. Breakdown or urgent? Tell us and we&rsquo;ll fast-track it where we can.</p>
+        
+        <div class="cta rise" style="--d:120ms"><a class="btn" href="/quote#drawing">Send a drawing for a quote <span class="arrow" aria-hidden="true">&rarr;</span></a><a class="btn btn-line" href="tel:01416475913">Call 0141 647 5913</a></div>
+      </div>
+      <figure class="rise" style="--d:120ms"><img src="/assets/draw.jpg" width="1400" height="788" alt="Two engineers going through a drawing, with turned and milled steel parts on the bench" fetchpriority="high"></figure>
     </div>
   </div>
+</section>
 
-  <!-- SERVICES FULL (light) -->
-  <div class="section light">
-    <div class="section-inner">
-      <div class="svc-full">
-        <div class="svc-full-card rv">
-          <div class="svc-full-img"><div class="bg-fab"></div></div>
-          <div class="svc-full-body">
-            <h2>Metal Fabrication</h2>
-            <p>Brackets, frames, enclosures, conveyor systems and one off assemblies. Mild steel, stainless or aluminium, welded and finished to your drawing.</p>
-            <div class="svc-spec"><span>MIG</span><span>TIG</span><span>Laser</span><span>Mild Steel</span><span>Stainless</span><span>Aluminium</span></div>
-          </div>
-        </div>
-        <div class="svc-full-card rv rv-d1">
-          <div class="svc-full-img"><div class="bg-mill"></div></div>
-          <div class="svc-full-body">
-            <h2>CNC Milling</h2>
-            <p>Pockets, profiles and awkward contours, from a single prototype to a full production batch, held to tolerance.</p>
-            <div class="svc-spec"><span>1200×750 Bed</span><span>±0.01mm</span><span>5 Axis</span></div>
-          </div>
-        </div>
-        <div class="svc-full-card rv">
-          <div class="svc-full-img"><div class="bg-turn"></div></div>
-          <div class="svc-full-body">
-            <h2>CNC Turning</h2>
-            <p>Shafts, flanges, bushes and fittings. We turn up to 1 metre across and 3 metres long, or up to 5 metres for slimmer parts under 160mm.</p>
-            <div class="svc-spec"><span>Ø1m Max</span><span>3m Length</span><span>5m Under Ø160</span></div>
-          </div>
-        </div>
-        <div class="svc-full-card rv rv-d1">
-          <div class="svc-full-img"><div class="bg-mach"></div></div>
-          <div class="svc-full-body">
-            <h2>CNC Machining</h2>
-            <p>A 1200 by 750mm bed and 5 axis capability for complex parts, held to ±0.01mm in most materials.</p>
-            <div class="svc-spec"><span>Prototype</span><span>Production</span><span>All Materials</span></div>
-          </div>
-        </div>
-        <div class="svc-full-card svc-full-wide rv" id="water-jet">
-          <div class="svc-full-img"><div class="bg-wj"></div></div>
-          <div class="svc-full-body">
-            <h2>Water Jet Profiling</h2>
-            <p>Profiles cut from sheet and plate with a high pressure water jet. It's a cold cut, so there's no heat distortion and the material keeps its properties right up to the edge. Send us a DXF or a drawing and we'll cut it to shape, ready for machining or fabrication.</p>
-            <div class="svc-spec"><span>Cold Cut</span><span>No Heat Distortion</span><span>Clean Edges</span><span>DXF Ready</span></div>
-          </div>
-        </div>
-        <div class="svc-full-card rv">
-          <div class="svc-full-img"><div class="bg-insp"></div></div>
-          <div class="svc-full-body">
-            <h2>Inspection</h2>
-            <p>First article reports, calibrated gauging and full dimensional checks, with inspection paperwork supplied if your job needs it.</p>
-            <div class="svc-spec"><span>FAIR</span><span>Calibrated</span><span>Documented</span></div>
-          </div>
-        </div>
-        <div class="svc-full-card rv rv-d1">
-          <div class="svc-full-img"><div class="bg-mat"></div></div>
-          <div class="svc-full-body">
-            <h2>Materials</h2>
-            <p>We machine plastics, copper, aluminium, stainless and hardened steel. Tell us what the job needs and we'll advise.</p>
-            <div class="svc-spec"><span>Plastics</span><span>Copper</span><span>Aluminium</span><span>Stainless</span><span>Hardened</span></div>
-          </div>
-        </div>
+<section class="sec">
+  <div class="wrap">
+    <div class="sv-list">
+<article class="sv rv" id="fabrication">
+  <span class="n">01</span>
+  <div><h2>Metal fabrication</h2><p>Brackets, frames, enclosures, conveyor systems and one off assemblies. Mild steel, stainless or aluminium, welded and finished to your drawing.</p><ul class="glance"><li>MIG</li><li>TIG</li><li>Laser</li><li>Mild Steel</li><li>Stainless</li><li>Aluminium</li></ul></div>
+  <div class="sv-fig"><img src="/assets/fab.jpg" width="1400" height="788" alt="A welder at work beside a milling machine and finished steel parts" loading="lazy" decoding="async"></div>
+</article>
+<article class="sv sv-flip rv" id="milling">
+  <span class="n">02</span>
+  <div><h2>CNC milling</h2><p>Pockets, profiles and awkward contours, from a single prototype to a full production batch, held to tolerance.</p><ul class="glance"><li>1200×750 Bed</li><li>±0.01mm</li><li>5 Axis</li></ul><p><a class="text-link" href="/capabilities/cnc-milling">CNC milling in detail <span aria-hidden="true">&rarr;</span></a></p></div>
+  <div class="sv-fig"><img src="/assets/mill.jpg" width="1400" height="788" alt="A milling machine cutting an aluminium part" loading="lazy" decoding="async"></div>
+</article>
+<article class="sv rv" id="turning">
+  <span class="n">03</span>
+  <div><h2>CNC turning</h2><p>Shafts, flanges, bushes and fittings. We turn up to 1 metre across and 3 metres long, or up to 5 metres for slimmer parts under 160mm.</p><ul class="glance"><li>Ø1m Max</li><li>3m Length</li><li>5m Under Ø160</li></ul><p><a class="text-link" href="/capabilities/cnc-turning">CNC turning in detail <span aria-hidden="true">&rarr;</span></a></p></div>
+  <div class="sv-fig"><img src="/assets/turn.jpg" width="1400" height="788" alt="A turned steel shaft in the chuck of a lathe, with finished parts below" loading="lazy" decoding="async"></div>
+</article>
+<article class="sv sv-flip rv" id="machining">
+  <span class="n">04</span>
+  <div><h2>CNC machining</h2><p>A 1200 by 750mm bed and 5 axis capability for complex parts, held to ±0.01mm in most materials.</p><ul class="glance"><li>Prototype</li><li>Production</li><li>All Materials</li></ul><p><a class="text-link" href="/capabilities/prototypes">Prototypes <span aria-hidden="true">&rarr;</span></a></p></div>
+  <div class="sv-fig"><img src="/assets/mach.jpg" width="1400" height="788" alt="Machined steel and aluminium parts on a workshop bench in front of a milling machine" loading="lazy" decoding="async"></div>
+</article>
+<article class="sv sv-dark rv" id="water-jet">
+  <span class="n">05</span>
+  <div><h2>Water jet profiling</h2><p>Profiles cut from sheet and plate with a high pressure water jet. It&rsquo;s a cold cut, so there&rsquo;s no heat distortion and the material keeps its properties right up to the edge. Send us a DXF or a drawing and we&rsquo;ll cut it to shape, ready for machining or fabrication.</p><ul class="glance"><li>Cold Cut</li><li>No Heat Distortion</li><li>Clean Edges</li><li>DXF Ready</li></ul></div>
+  <div class="sv-fig"><div class="wj-art" role="img" aria-label="Drawing of a profile being cut by a water jet"></div></div>
+</article>
+<article class="sv sv-flip rv" id="inspection">
+  <span class="n">06</span>
+  <div><h2>Inspection</h2><p>First article reports, calibrated gauging and full dimensional checks, with inspection paperwork supplied if your job needs it.</p><ul class="glance"><li>FAIR</li><li>Calibrated</li><li>Documented</li></ul></div>
+  <div class="sv-fig"><img src="/assets/insp.jpg" width="1400" height="788" alt="An engineer measuring a turned part with calipers" loading="lazy" decoding="async"></div>
+</article>
+<article class="sv rv" id="materials">
+  <span class="n">07</span>
+  <div><h2>Materials</h2><p>We machine plastics, copper, aluminium, stainless and hardened steel. Tell us what the job needs and we&rsquo;ll advise.</p><ul class="glance"><li>Plastics</li><li>Copper</li><li>Aluminium</li><li>Stainless</li><li>Hardened</li></ul><p><a class="text-link" href="/capabilities/materials">Materials in detail <span aria-hidden="true">&rarr;</span></a></p></div>
+  <div class="sv-fig"><img src="/assets/mat.jpg" width="1400" height="788" alt="Bar, plate and tube stock in aluminium and steel" loading="lazy" decoding="async"></div>
+</article>
+    </div>
+  </div>
+</section>
+
+<section class="sec-tight">
+  <div class="wrap rv">
+    <h2 class="more-head">More detail</h2>
+    <p class="lede" style="margin:0 0 1.4rem">What we make, how we quote it and what to send us.</p>
+    <div class="more-links">
+      <a href="/capabilities/cnc-milling"><span>CNC milling</span><i aria-hidden="true">&rarr;</i></a>
+      <a href="/capabilities/cnc-turning"><span>CNC turning</span><i aria-hidden="true">&rarr;</i></a>
+      <a href="/capabilities/prototypes"><span>Prototypes</span><i aria-hidden="true">&rarr;</i></a>
+      <a href="/capabilities/batch-production"><span>Batch production</span><i aria-hidden="true">&rarr;</i></a>
+      <a href="/capabilities/materials"><span>Materials</span><i aria-hidden="true">&rarr;</i></a>
+      <a href="/projects/"><span>Projects</span><i aria-hidden="true">&rarr;</i></a>
+    </div>
+  </div>
+</section>
+
+<section class="last navy">
+  <div class="wrap rv">
+    <h2>Not sure which process?<em>Send the drawing anyway.</em></h2>
+    <p>We&rsquo;ll tell you how we&rsquo;d make it and what it&rsquo;ll cost. If it&rsquo;s a better fit for our sister company Marpet, we&rsquo;ll say so.</p>
+    <div class="cta"><a class="btn btn-light" href="/quote#drawing">Send us your drawing <span class="arrow" aria-hidden="true">&rarr;</span></a><a class="btn btn-line-light" href="tel:01416475913">Call 0141 647 5913</a></div>
+    <p class="hours">Workshop open Monday to Thursday 07:30 to 16:30, Friday 07:30 to 14:30. Closed at weekends.</p>
+  </div>
+</section>
+</main>
+
+<footer class="colophon">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <a class="foot-brand" href="/"><span class="brand-mark"><img src="/assets/logo-white.png" alt="" width="271" height="360" loading="lazy" decoding="async"></span><span class="brand-name">J.N.R. Engineering</span></a>
+        <p class="foot-tag">CNC machining, water jet profiling and fabrication. Family run, Hamilton.</p>
+      </div>
+      <div>
+        <h2>Site</h2>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/about">About</a></li>
+          <li><a href="/services">Services</a></li>
+          <li><a href="/quote">Get a quote</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>What we make</h2>
+        <ul>
+          <li><a href="/capabilities/cnc-milling">CNC milling</a></li>
+          <li><a href="/capabilities/cnc-turning">CNC turning</a></li>
+          <li><a href="/capabilities/prototypes">Prototypes</a></li>
+          <li><a href="/capabilities/batch-production">Batch production</a></li>
+          <li><a href="/capabilities/materials">Materials</a></li>
+          <li><a href="/projects/">Projects</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Contact</h2>
+        <ul>
+          <li><a href="tel:01416475913">0141 647 5913</a></li>
+          <li><a href="mailto:john.hume@jnrengineeringltd.co.uk">john.hume@jnrengineeringltd.co.uk</a></li>
+          <li><span>Block 8 Unit 1, Whistleberry Industrial Estate, Hamilton, ML3 0ED</span></li>
+        </ul>
+        <h2 style="margin-top:1.4rem">Family</h2>
+        <ul>
+          <li><a href="https://www.marpet.co.uk/" target="_blank" rel="noopener">Marpet Fabrications<span class="visually-hidden"> (opens in a new tab)</span></a></li>
+        </ul>
       </div>
     </div>
-  </div>
-
-  <!-- MORE DETAIL -->
-  <div class="section" style="padding-top:70px;padding-bottom:70px">
-    <div class="section-inner">
-      <div class="sec-head rv">
-        <h2 class="sec-title">More<br><em style="font-style:normal;color:var(--blue-hi)">Detail.</em></h2>
-        <p class="sec-desc">What we make, how we quote it and what to send us.</p>
-      </div>
-      <div class="more-links rv">
-        <a href="/capabilities/cnc-milling"><span>CNC Milling</span><i aria-hidden="true">&rarr;</i></a>
-        <a href="/capabilities/cnc-turning"><span>CNC Turning</span><i aria-hidden="true">&rarr;</i></a>
-        <a href="/capabilities/prototypes"><span>Prototypes</span><i aria-hidden="true">&rarr;</i></a>
-        <a href="/capabilities/batch-production"><span>Batch Production</span><i aria-hidden="true">&rarr;</i></a>
-        <a href="/capabilities/materials"><span>Materials</span><i aria-hidden="true">&rarr;</i></a>
-        <a href="/projects/"><span>Projects</span><i aria-hidden="true">&rarr;</i></a>
-      </div>
+    <div class="endline">
+      <span>&copy; 2026 JNR Engineering Ltd</span>
+      <a href="/privacy">Privacy</a>
+      <a href="https://www.rhyshume.co.uk/websites">Website by Rhys Hume</a>
+      <span class="foot-legal">Registered in Scotland, company no. SC334377. Registered office: Block 8 Unit 1, Whistleberry Industrial Estate, Blantyre, ML3 0ED</span>
     </div>
-  </div>
-
-  <!-- CTA -->
-  <div class="cta-band">
-    <div class="rv" style="position:relative;z-index:2">
-      <h2 class="cta-title">Not sure which process?<br><em>Send the drawing anyway.</em></h2>
-      <p class="cta-sub">We'll tell you how we'd make it and what it'll cost. If it's a better fit for our sister company Marpet, we'll say so.</p>
-      <a class="btn btn-primary magnetic" href="/quote"><span class="btn-roll"><span>Send Us Your Drawing</span><span aria-hidden="true">Send Us Your Drawing</span></span></a>
-    </div>
-  </div>
-
-</div>
-
-<!-- ═══ FOOTER ═══ -->
-<footer>
-  <div class="foot-grid">
-    <div>
-      <span class="foot-logo"><img src="/assets/logo-navy.png" alt="J.N.R. Engineering Ltd" width="200" height="82" loading="lazy" decoding="async"></span>
-      <p class="foot-tag">CNC machining, water jet profiling and fabrication. Family run, Hamilton.</p>
-    </div>
-    <div>
-      <div class="foot-h">Site</div>
-      <ul class="foot-links">
-        <li><a href="/">Home</a></li>
-        <li><a href="/about">About</a></li>
-        <li><a href="/services">Services</a></li>
-        <li><a href="/quote">Get A Quote</a></li>
-      </ul>
-    </div>
-    <div>
-      <div class="foot-h">What we make</div>
-      <ul class="foot-links">
-        <li><a href="/capabilities/cnc-milling">CNC Milling</a></li>
-        <li><a href="/capabilities/cnc-turning">CNC Turning</a></li>
-        <li><a href="/capabilities/prototypes">Prototypes</a></li>
-        <li><a href="/capabilities/batch-production">Batch Production</a></li>
-        <li><a href="/capabilities/materials">Materials</a></li>
-        <li><a href="/projects/">Projects</a></li>
-      </ul>
-    </div>
-    <div>
-      <div class="foot-h">Family</div>
-      <ul class="foot-links">
-        <li><a href="https://www.marpet.co.uk/" target="_blank" rel="noopener">Marpet Fabrications</a></li>
-      </ul>
-    </div>
-    <div>
-      <div class="foot-h">Contact</div>
-      <ul class="foot-links">
-        <li><a href="tel:01416475913">0141 647 5913</a></li>
-        <li><a href="mailto:john.hume@jnrengineeringltd.co.uk">john.hume@jnrengineeringltd.co.uk</a></li>
-        <li><span>Block 8 Unit 1, Whistleberry Industrial Estate, Hamilton, ML3 0ED</span></li>
-      </ul>
-    </div>
-  </div>
-  <div class="foot-bottom">
-    <span>© 2026 JNR Engineering Ltd</span>
-    <span class="foot-legal">Registered in Scotland, company no. SC334377. Registered office: Block 8 Unit 1, Whistleberry Industrial Estate, Blantyre, ML3 0ED</span>
-    <a href="/privacy">Privacy</a>
-    <a href="https://www.rhyshume.co.uk/websites">Website by Rhys Hume</a>
   </div>
 </footer>
 
-<script src="/assets/gsap.min.js"></script>
-<script src="/assets/ScrollTrigger.min.js"></script>
-<script src="/assets/SplitText.min.js"></script>
-<script src="/assets/lenis.min.js"></script>
+<aside class="callbar" aria-label="Call or send a drawing"><a class="cb-call" href="tel:01416475913"><span>Breakdown or urgent?</span>Call us</a><a class="cb-quote" href="/quote#drawing"><span>Got a drawing?</span>Send it for a quote</a></aside>
+
 <script src="/assets/site.js"></script>
 </body>
 </html>

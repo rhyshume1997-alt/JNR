@@ -8,5 +8,8 @@
   },
   "dependencies": {
     "busboy": "^1.6.0"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
   }
 }

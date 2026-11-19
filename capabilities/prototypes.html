@@ -216,187 +216,171 @@
   ]
 }
 </script>
+<meta name="theme-color" content="#031339">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="preload" href="/assets/jnr-head.otf" as="font" type="font/otf" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/style.css">
+<script>document.documentElement.classList.add('js')</script>
 </head>
-
 <body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="masthead">
+  <div class="wrap">
+    <a class="brand" href="/"><span class="brand-mark"><img src="/assets/logo-navy.png" alt="" width="271" height="360"></span><span class="brand-name">J.N.R. Engineering<small>CNC machining, Hamilton</small></span></a>
+    <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="siteNav"><i aria-hidden="true"></i><span>Menu</span></button>
+    <nav class="site-nav" id="siteNav" aria-label="Main">
+      <ul>
+        <li><a class="nl" href="/">Home</a></li>
+        <li><a class="nl" href="/services" aria-current="page">Services</a></li>
+        <li><a class="nl" href="/about">About</a></li>
+        <li class="nav-m"><a class="nl" href="/quote">Get a quote</a></li>
+      </ul>
+    </nav>
+    <a class="head-tel" href="tel:01416475913" aria-label="Call the workshop on 0141 647 5913">0141 647 5913</a>
+    <a class="btn btn-sm head-quote" href="/quote">Get a quote</a>
+  </div>
+</header>
 
-<!-- ═══ NAV ═══ -->
-<nav id="nav">
-  <a class="nav-logo" href="/">
-    <img class="lg-white" src="/assets/logo-white.png" alt="J.N.R. Engineering Ltd">
-    <img class="lg-navy" src="/assets/logo-navy.png" alt="J.N.R. Engineering Ltd">
-  </a>
-  <ul class="nav-links">
-    <li><a id="nl-home" href="/">Home</a></li>
-    <li><a id="nl-about" href="/about">About</a></li>
-    <li><a id="nl-services" href="/services">Services</a></li>
-  </ul>
-  <a class="nav-tel" href="tel:01416475913" aria-label="Call the workshop on 0141 647 5913">0141 647 5913</a>
-  <a class="nav-cta magnetic" href="/quote"><span class="btn-roll"><span>Get A Quote</span><span aria-hidden="true">Get A Quote</span></span></a>
-  <button class="hamburger" id="burger" onclick="toggleMenu()" aria-label="Menu">
-    <span></span><span></span><span></span>
-  </button>
-</nav>
-
-<!-- ═══ MOBILE MENU ═══ -->
-<div class="mobile-menu" id="mobileMenu">
-  <a href="/">Home</a>
-  <a href="/about">About</a>
-  <a href="/services">Services</a>
-  <a href="/quote">Get A Quote</a>
-</div>
-
-<div id="page-prototypes" class="page active">
-
-  <div class="page-hero">
-    <div class="hero-bg bg-mach"></div>
-    <div class="hero-shade"></div>
-    <div class="page-hero-content">
-      <h1><span class="line"><span style="animation-delay:0.45s">CNC Prototypes</span></span> <span class="line"><span style="animation-delay:0.6s"><em>In Hamilton.</em></span></span></h1>
-      <p class="hero-sub">One prototype or a handful, machined to your drawing and checked before it ships.</p>
+<main id="main">
+<section class="pagehead">
+  <div class="wrap">
+    <p class="crumbs"><a href="/">Home</a> / <a href="/services">Services</a> / Prototypes</p>
+    <div class="pagehead-grid has-photo">
+      <div>
+        <h1 class="rise">CNC prototypes <em>in Hamilton.</em></h1>
+        <p class="lede rise" style="--d:60ms">One prototype or a handful, machined to your drawing and checked before it ships.</p>
+        <ul class="glance rise" style="--d:100ms"><li>Prototype</li><li>5 Axis</li><li>All Materials</li></ul>
+        <div class="cta rise" style="--d:120ms"><a class="btn" href="/quote#drawing">Send a drawing for a quote <span class="arrow" aria-hidden="true">&rarr;</span></a><a class="btn btn-line" href="tel:01416475913">Call 0141 647 5913</a></div>
+      </div>
+      <figure class="rise" style="--d:120ms"><img src="/assets/mach.jpg" width="1400" height="788" alt="Machined steel and aluminium parts on a workshop bench in front of a milling machine" fetchpriority="high"></figure>
     </div>
   </div>
+</section>
 
-  <div class="section light cap">
-    <div class="section-inner">
-      <p class="crumbs"><a href="/">Home</a> / <a href="/services">Services</a> / Prototypes</p>
-      <div class="cap-layout">
-        <div class="cap-copy">
-          <!-- RHYS TO SUPPLY: typical prototype turnaround; whether you give design for manufacture feedback; any minimum order value; whether an NDA can be signed; photos and short write-ups of prototype jobs -->
-          <h2>Prototypes made to your drawing</h2>
+<section class="sec">
+  <div class="wrap">
+    <div class="cap-layout">
+      <div class="cap-copy">
+<!-- RHYS TO SUPPLY: typical prototype turnaround; whether you give design for manufacture feedback; any minimum order value; whether an NDA can be signed; photos and short write-ups of prototype jobs -->
+          <p class="jump-label">On this page</p><ul class="jump"><li><a href="#prototypes-made-to-your-drawing">Prototypes made to your drawing</a></li><li><a href="#what-to-tell-us-when-you-ask-for-a-prototype-quote">What to tell us when you ask for a prototype quote</a></li><li><a href="#getting-the-most-from-a-prototype">Getting the most from a prototype</a></li><li><a href="#checked-and-kept-private">Checked, and kept private</a></li><li><a href="#need-it-fast">Need it fast?</a></li></ul>
+<h2 id="prototypes-made-to-your-drawing">Prototypes made to your drawing</h2>
           <p>A prototype is where a design meets a real piece of metal, and it's usually where the questions start. We machine prototypes in our own workshop in Hamilton, from a single part upwards, on our 5 axis machine and our turning machines.</p>
           <p>We work in plastics, copper, aluminium, stainless and hardened steel, and we hold ±0.01mm on most materials. Whether it's a bracket, a housing or a shaft, the person who prices it is one of the people who'll make it.</p>
-          <h2>What to tell us when you ask for a prototype quote</h2>
+          <h2 id="what-to-tell-us-when-you-ask-for-a-prototype-quote">What to tell us when you ask for a prototype quote</h2>
           <p>Say it's a prototype. A one off is priced differently from a run of fifty, and we'd rather quote it as what it is.</p>
           <p>Send the drawing, the material and the quantity, and tell us when you need it. If the design might still change, say that too, and tell us which dimensions are critical so we can put the effort where it counts.</p>
           <p>If you think a batch might follow, tell us roughly how many. You don't have to commit to anything, it just gives us a fuller picture of the job.</p>
           <p>We take DXF, DWG, STEP, IGES, STL, PDF, JPG and PNG files, up to four on the quote form and 4MB in total. If you've only got a sketch or a model so far, send that and we'll tell you what else we need.</p>
-          <h2>Getting the most from a prototype</h2>
+          <h2 id="getting-the-most-from-a-prototype">Getting the most from a prototype</h2>
           <p>A prototype exists to answer a question, does it fit, does it work, can it be made this way. If you tell us what you're testing, we can pay extra attention to those features, and we can say if anything on the drawing looks like it could cause trouble in the next round.</p>
           <p>Keep the drawing revision clear. When a second version follows, a revision number on each means we both know which part is which.</p>
-          <h2>Checked, and kept private</h2>
+          <h2 id="checked-and-kept-private">Checked, and kept private</h2>
           <p>We measure every part against your drawing before it leaves the workshop, prototypes included, and we can supply inspection paperwork such as a first article report if you need it.</p>
           <p>Your drawings are kept confidential.</p>
-          <h2>Need it fast?</h2>
+          <h2 id="need-it-fast">Need it fast?</h2>
           <p>Lead times depend on the part, the material and what's in the workshop, and we give you one with every price. If a prototype is holding up a project, say so on the form and phone us on 0141 647 5913. We'll turn it round as fast as the job allows.</p>
-        </div>
-        <aside class="cap-aside">
-          <h3>At a glance</h3>
-          <div class="svc-spec" style="border-top:0;padding-top:0;margin-top:14px"><span>Prototype</span><span>5 Axis</span><span>All Materials</span></div>
-          <p>Send us your drawing and we'll come back with a price and a lead time.</p>
-          <a class="btn btn-primary magnetic" href="/quote#drawing"><span class="btn-roll"><span>Send Us Your Drawing</span><span aria-hidden="true">Send Us Your Drawing</span></span></a>
-          <p class="aside-phone">Or phone the workshop on <a href="tel:01416475913">0141 647 5913</a></p>
-        </aside>
       </div>
+      <aside class="cap-aside" aria-labelledby="aside-h">
+        <h2 id="aside-h">Get a price</h2>
+        <p>Send us your drawing and we&rsquo;ll come back with a price and a lead time.</p>
+        <a class="btn btn-light" href="/quote#drawing">Send us your drawing <span class="arrow" aria-hidden="true">&rarr;</span></a>
+        <p class="aside-phone">Or phone the workshop on <a href="tel:01416475913">0141 647 5913</a></p>
+      </aside>
     </div>
   </div>
+</section>
 
-  <div class="section light faq-sec" style="padding-top:0">
-    <div class="section-inner">
-      <div class="faq">
-        <h2 class="faq-title">Questions</h2>
+<section class="sec sec-paper2">
+  <div class="wrap">
+    <div class="faq rv">
+      <h2>Questions</h2>
         <div class="faq-item"><h3>Can you make just one part?</h3><p>Yes. We machine everything from a single prototype to a full production batch.</p></div>
         <div class="faq-item"><h3>What materials do you machine prototypes in?</h3><p>Plastics, copper, aluminium, stainless and hardened steel. Tell us what the part has to do and we&#x27;ll advise if you&#x27;re not sure.</p></div>
         <div class="faq-item"><h3>What do you need to quote a prototype?</h3><p>The drawing, the material, the quantity and when you need it by. Mention that it&#x27;s a prototype and which dimensions matter most.</p></div>
         <div class="faq-item"><h3>Will you keep my drawings confidential?</h3><p>Yes. Your drawings are kept confidential.</p></div>
         <div class="faq-item"><h3>Can I get inspection paperwork for a prototype?</h3><p>Yes, if your job needs it. We supply first article reports and inspection paperwork with the parts.</p></div>
         <div class="faq-item"><h3>How quickly can you turn a prototype round?</h3><p>It depends on the part, the material and the workshop&#x27;s workload, and we give you a lead time we can hit with every price. For an urgent job, tell us on the form and phone the workshop.</p></div>
+        
+    </div>
+  </div>
+</section>
+
+<section class="sec-tight">
+  <div class="wrap rv">
+    <h2 class="more-head">More from the workshop</h2>
+    <div class="more-links">
+      <a href="/capabilities/cnc-milling"><span>CNC milling</span><i aria-hidden="true">&rarr;</i></a>
+      <a href="/capabilities/cnc-turning"><span>CNC turning</span><i aria-hidden="true">&rarr;</i></a>
+      <a href="/capabilities/batch-production"><span>Batch production</span><i aria-hidden="true">&rarr;</i></a>
+      <a href="/capabilities/materials"><span>Materials</span><i aria-hidden="true">&rarr;</i></a>
+      <a href="/services"><span>All services</span><i aria-hidden="true">&rarr;</i></a>
+      <a href="/projects/"><span>Projects</span><i aria-hidden="true">&rarr;</i></a>
+    </div>
+  </div>
+</section>
+
+<section class="last navy">
+  <div class="wrap rv">
+    <h2>Got a drawing?<em>We&rsquo;ll quote it.</em></h2>
+    <p>Fill in the form and upload the drawing. We&rsquo;ll come back with a price and a lead time.</p>
+    <div class="cta"><a class="btn btn-light" href="/quote#drawing">Send us your drawing <span class="arrow" aria-hidden="true">&rarr;</span></a><a class="btn btn-line-light" href="tel:01416475913">Call 0141 647 5913</a></div>
+    <p class="hours">Workshop open Monday to Thursday 07:30 to 16:30, Friday 07:30 to 14:30. Closed at weekends.</p>
+  </div>
+</section>
+</main>
+
+<footer class="colophon">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <a class="foot-brand" href="/"><span class="brand-mark"><img src="/assets/logo-white.png" alt="" width="271" height="360" loading="lazy" decoding="async"></span><span class="brand-name">J.N.R. Engineering</span></a>
+        <p class="foot-tag">CNC machining, water jet profiling and fabrication. Family run, Hamilton.</p>
+      </div>
+      <div>
+        <h2>Site</h2>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/about">About</a></li>
+          <li><a href="/services">Services</a></li>
+          <li><a href="/quote">Get a quote</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>What we make</h2>
+        <ul>
+          <li><a href="/capabilities/cnc-milling">CNC milling</a></li>
+          <li><a href="/capabilities/cnc-turning">CNC turning</a></li>
+          <li><a href="/capabilities/prototypes">Prototypes</a></li>
+          <li><a href="/capabilities/batch-production">Batch production</a></li>
+          <li><a href="/capabilities/materials">Materials</a></li>
+          <li><a href="/projects/">Projects</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Contact</h2>
+        <ul>
+          <li><a href="tel:01416475913">0141 647 5913</a></li>
+          <li><a href="mailto:john.hume@jnrengineeringltd.co.uk">john.hume@jnrengineeringltd.co.uk</a></li>
+          <li><span>Block 8 Unit 1, Whistleberry Industrial Estate, Hamilton, ML3 0ED</span></li>
+        </ul>
+        <h2 style="margin-top:1.4rem">Family</h2>
+        <ul>
+          <li><a href="https://www.marpet.co.uk/" target="_blank" rel="noopener">Marpet Fabrications<span class="visually-hidden"> (opens in a new tab)</span></a></li>
+        </ul>
       </div>
     </div>
-  </div>
-
-  <div class="section" style="padding-top:70px;padding-bottom:70px">
-    <div class="section-inner">
-      <div class="sec-head rv">
-        <h2 class="sec-title">More From<br><em style="font-style:normal;color:var(--blue-hi)">The Workshop.</em></h2>
-      </div>
-      <div class="more-links rv">
-        <a href="/capabilities/cnc-milling"><span>CNC Milling</span><i aria-hidden="true">&rarr;</i></a>
-        <a href="/capabilities/cnc-turning"><span>CNC Turning</span><i aria-hidden="true">&rarr;</i></a>
-        <a href="/capabilities/batch-production"><span>Batch Production</span><i aria-hidden="true">&rarr;</i></a>
-        <a href="/capabilities/materials"><span>Materials</span><i aria-hidden="true">&rarr;</i></a>
-        <a href="/services"><span>All Services</span><i aria-hidden="true">&rarr;</i></a>
-        <a href="/projects/"><span>Projects</span><i aria-hidden="true">&rarr;</i></a>
-      </div>
+    <div class="endline">
+      <span>&copy; 2026 JNR Engineering Ltd</span>
+      <a href="/privacy">Privacy</a>
+      <a href="https://www.rhyshume.co.uk/websites">Website by Rhys Hume</a>
+      <span class="foot-legal">Registered in Scotland, company no. SC334377. Registered office: Block 8 Unit 1, Whistleberry Industrial Estate, Blantyre, ML3 0ED</span>
     </div>
-  </div>
-
-  <!-- CTA -->
-  <div class="cta-band">
-    <div class="rv" style="position:relative;z-index:2">
-      <h2 class="cta-title">Got A Drawing?<br><em>We'll Quote It.</em></h2>
-      <p class="cta-sub">Fill in the form and upload the drawing. We'll come back with a price and a lead time.</p>
-      <a class="btn btn-primary magnetic" href="/quote#drawing"><span class="btn-roll"><span>Send Us Your Drawing</span><span aria-hidden="true">Send Us Your Drawing</span></span></a>
-    </div>
-  </div>
-
-</div>
-
-<!-- ═══ FOOTER ═══ -->
-<footer>
-  <div class="foot-grid">
-    <div>
-      <span class="foot-logo"><img src="/assets/logo-navy.png" alt="J.N.R. Engineering Ltd" width="200" height="82" loading="lazy" decoding="async"></span>
-      <p class="foot-tag">CNC machining, water jet profiling and fabrication. Family run, Hamilton.</p>
-    </div>
-    <div>
-      <div class="foot-h">Site</div>
-      <ul class="foot-links">
-        <li><a href="/">Home</a></li>
-        <li><a href="/about">About</a></li>
-        <li><a href="/services">Services</a></li>
-        <li><a href="/quote">Get A Quote</a></li>
-      </ul>
-    </div>
-    <div>
-      <div class="foot-h">What we make</div>
-      <ul class="foot-links">
-        <li><a href="/capabilities/cnc-milling">CNC Milling</a></li>
-        <li><a href="/capabilities/cnc-turning">CNC Turning</a></li>
-        <li><a href="/capabilities/prototypes">Prototypes</a></li>
-        <li><a href="/capabilities/batch-production">Batch Production</a></li>
-        <li><a href="/capabilities/materials">Materials</a></li>
-        <li><a href="/projects/">Projects</a></li>
-      </ul>
-    </div>
-    <div>
-      <div class="foot-h">Family</div>
-      <ul class="foot-links">
-        <li><a href="https://www.marpet.co.uk/" target="_blank" rel="noopener">Marpet Fabrications</a></li>
-      </ul>
-    </div>
-    <div>
-      <div class="foot-h">Contact</div>
-      <ul class="foot-links">
-        <li><a href="tel:01416475913">0141 647 5913</a></li>
-        <li><a href="mailto:john.hume@jnrengineeringltd.co.uk">john.hume@jnrengineeringltd.co.uk</a></li>
-        <li><span>Block 8 Unit 1, Whistleberry Industrial Estate, Hamilton, ML3 0ED</span></li>
-      </ul>
-    </div>
-  </div>
-  <div class="foot-bottom">
-    <span>© 2026 JNR Engineering Ltd</span>
-    <span class="foot-legal">Registered in Scotland, company no. SC334377. Registered office: Block 8 Unit 1, Whistleberry Industrial Estate, Blantyre, ML3 0ED</span>
-    <a href="/privacy">Privacy</a>
   </div>
 </footer>
 
-<script src="/assets/gsap.min.js"></script>
-<script src="/assets/ScrollTrigger.min.js"></script>
-<script src="/assets/SplitText.min.js"></script>
-<script src="/assets/lenis.min.js"></script>
-<script src="/assets/site.js"></script>
-</body>
+<aside class="callbar" aria-label="Call or send a drawing"><a class="cb-call" href="tel:01416475913"><span>Breakdown or urgent?</span>Call us</a><a class="cb-quote" href="/quote#drawing"><span>Got a drawing?</span>Send it for a quote</a></aside>
 
-<script src="/assets/gsap.min.js"></script>
-<script src="/assets/ScrollTrigger.min.js"></script>
-<script src="/assets/SplitText.min.js"></script>
-<script src="/assets/lenis.min.js"></script>
 <script src="/assets/site.js"></script>
 </body>
 </html>
